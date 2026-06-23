@@ -405,9 +405,11 @@ async function loadDashboardData() {
                 const elParsed = document.getElementById("statParsed");
                 const elWritten = document.getElementById("statWritten");
                 const elRemoved = document.getElementById("statRemoved");
+                const elMeta = document.getElementById("statMetadata");
                 
                 if (elParsed) elParsed.innerText = data.stats.items_parsed;
                 if (elWritten) elWritten.innerText = data.stats.strm_written;
+                if (elMeta) elMeta.innerText = data.stats.metadata_synced || 0;
                 if (elRemoved) elRemoved.innerText = data.stats.files_removed + data.stats.dirs_removed;
             }
 
@@ -424,14 +426,17 @@ async function loadDashboardData() {
             const elParsed = document.getElementById("statParsed");
             const elWritten = document.getElementById("statWritten");
             const elRemoved = document.getElementById("statRemoved");
+            const elMeta = document.getElementById("statMetadata");
             
             if (latestTask) {
                 if (elParsed) elParsed.innerText = latestTask.items_parsed || 0;
                 if (elWritten) elWritten.innerText = latestTask.strm_written || 0;
+                if (elMeta) elMeta.innerText = latestTask.metadata_synced || 0;
                 if (elRemoved) elRemoved.innerText = (latestTask.files_removed || 0) + (latestTask.dirs_removed || 0);
             } else {
                 if (elParsed) elParsed.innerText = 0;
                 if (elWritten) elWritten.innerText = 0;
+                if (elMeta) elMeta.innerText = 0;
                 if (elRemoved) elRemoved.innerText = 0;
             }
 
@@ -473,13 +478,14 @@ function renderHistoryTable(history) {
         const dirRemoved = t.dirs_removed || 0;
         const totalRemoved = fileRemoved + dirRemoved;
 
+        const metaSynced = t.metadata_synced || 0;
         return `
             <tr>
                 <td>#${t.id}</td>
                 <td>${triggerText}</td>
                 <td><span class="status-badge ${statusClass}">${statusZh}</span></td>
                 <td>${t.items_parsed || 0}</td>
-                <td>${t.strm_written || 0}</td>
+                <td>${t.strm_written || 0} (${metaSynced})</td>
                 <td>${totalRemoved} (Dir: ${dirRemoved})</td>
                 <td>${t.elapsed_time ? t.elapsed_time.toFixed(2) + 's' : '-'}</td>
                 <td>${t.start_time || '-'}</td>
@@ -690,34 +696,42 @@ async function loadSources() {
         //     <button class="btn btn-danger" style="padding: 6px 12px; font-size:12px;" onclick="deleteSource(${s.id}, '${s.name}')">🗑️ 删除</button>
         // </div>
         */
-        sourceGridContainer.innerHTML = sources.map(s => `
-            <div class="card source-card">
-                <div class="source-card-title">
-                    <h3>${s.name}</h3>
-                    <span class="status-badge status-success" style="font-size: 10px;">激活</span>
+        sourceGridContainer.innerHTML = sources.map(s => {
+            const metaBadge = s.sync_metadata !== 0 ? 
+                '<span class="status-badge status-success" style="font-size: 10px;">元数据同步: 开启</span>' : 
+                '<span class="status-badge status-stopped" style="font-size: 10px;">元数据同步: 关闭</span>';
+            return `
+                <div class="card source-card">
+                    <div class="source-card-title" style="flex-wrap: wrap; gap: 6px;">
+                        <h3>${s.name}</h3>
+                        <div style="display: flex; gap: 4px;">
+                            ${metaBadge}
+                            <span class="status-badge status-success" style="font-size: 10px;">激活</span>
+                        </div>
+                    </div>
+                    
+                    <div class="source-path-item">
+                        <strong>谷歌云盘挂载路径 (GD)</strong>
+                        <span>${s.gd_path}</span>
+                    </div>
+                    <div class="source-path-item">
+                        <strong>本地 STRM 目录 (STRM)</strong>
+                        <span>${s.strm_path}</span>
+                    </div>
+                    <div class="source-path-item">
+                        <strong>rclone 云盘映射指令 (CMD)</strong>
+                        <span>${s.remote_path}</span>
+                    </div>
+                    
+                    <div class="source-card-actions" style="display: flex; gap: 6px; flex-wrap: wrap;">
+                        <button class="btn btn-primary" style="padding: 6px 10px; font-size:12px; flex: 1; min-width: 70px;" onclick="runSingleSync(${s.id}, false)">🚀 同步</button>
+                        <button class="btn btn-secondary" style="padding: 6px 10px; font-size:12px; flex: 1; min-width: 70px;" onclick="runSingleSync(${s.id}, true)">⚡ 强刷</button>
+                        <button class="btn btn-secondary" style="padding: 6px 10px; font-size:12px;" onclick="openEditModal(${s.id}, '${s.name}', '${s.gd_path}', '${s.strm_path}', '${s.remote_path}', ${s.sync_metadata})">✏️ 编辑</button>
+                        <button class="btn btn-danger" style="padding: 6px 10px; font-size:12px;" onclick="deleteSource(${s.id}, '${s.name}')">🗑️ 删除</button>
+                    </div>
                 </div>
-                
-                <div class="source-path-item">
-                    <strong>谷歌云盘挂载路径 (GD)</strong>
-                    <span>${s.gd_path}</span>
-                </div>
-                <div class="source-path-item">
-                    <strong>本地 STRM 目录 (STRM)</strong>
-                    <span>${s.strm_path}</span>
-                </div>
-                <div class="source-path-item">
-                    <strong>rclone 云盘映射指令 (CMD)</strong>
-                    <span>${s.remote_path}</span>
-                </div>
-                
-                <div class="source-card-actions" style="display: flex; gap: 6px; flex-wrap: wrap;">
-                    <button class="btn btn-primary" style="padding: 6px 10px; font-size:12px; flex: 1; min-width: 70px;" onclick="runSingleSync(${s.id}, false)">🚀 同步</button>
-                    <button class="btn btn-secondary" style="padding: 6px 10px; font-size:12px; flex: 1; min-width: 70px;" onclick="runSingleSync(${s.id}, true)">⚡ 强刷</button>
-                    <button class="btn btn-secondary" style="padding: 6px 10px; font-size:12px;" onclick="openEditModal(${s.id}, '${s.name}', '${s.gd_path}', '${s.strm_path}', '${s.remote_path}')">✏️ 编辑</button>
-                    <button class="btn btn-danger" style="padding: 6px 10px; font-size:12px;" onclick="deleteSource(${s.id}, '${s.name}')">🗑️ 删除</button>
-                </div>
-            </div>
-        `).join("");
+            `;
+        }).join("");
     } catch (e) {
         console.error("加载同步源列表失败:", e);
     }
@@ -1107,6 +1121,9 @@ async function openAddModal() {
     const sname = document.getElementById("sourceName");
     if (sname) sname.readOnly = false;
     
+    const sSyncMeta = document.getElementById("sourceSyncMetadata");
+    if (sSyncMeta) sSyncMeta.checked = true; // 默认开启
+    
     if (testRcloneResult) testRcloneResult.style.display = "none";
     if (sourceModal) sourceModal.classList.add("show");
     
@@ -1118,7 +1135,7 @@ async function openAddModal() {
     await strmSelector.init();
 }
 
-window.openEditModal = async function(id, name, gd, strm, remote) {
+window.openEditModal = async function(id, name, gd, strm, remote, sync_metadata) {
     if (modalTitle) modalTitle.innerText = "编辑同步源";
     
     const sid = document.getElementById("sourceId");
@@ -1135,6 +1152,9 @@ window.openEditModal = async function(id, name, gd, strm, remote) {
     
     const scmd = document.getElementById("sourceCmd");
     if (scmd) scmd.value = remote;
+    
+    const sSyncMeta = document.getElementById("sourceSyncMetadata");
+    if (sSyncMeta) sSyncMeta.checked = sync_metadata !== 0; // 默认开启，如果没提供也是 true 
     
     if (testRcloneResult) testRcloneResult.style.display = "none";
     if (sourceModal) sourceModal.classList.add("show");
@@ -1167,7 +1187,10 @@ if (sourceForm) {
         const scmd = document.getElementById("sourceCmd");
         const remote_path = scmd ? scmd.value : "";
 
-        const payload = { name, gd_path, strm_path, remote_path };
+        const sSyncMeta = document.getElementById("sourceSyncMetadata");
+        const sync_metadata = sSyncMeta ? (sSyncMeta.checked ? 1 : 0) : 1;
+
+        const payload = { name, gd_path, strm_path, remote_path, sync_metadata };
         
         try {
             let res;
@@ -1247,11 +1270,13 @@ async function loadSettings() {
         const elBatch = document.getElementById("batchWriteSize");
         const elSrc = document.getElementById("sourceConcurrency");
         const elCron = document.getElementById("cronExpression");
+        const elMeta = document.getElementById("metadataTypes");
         
         if (elWorker) elWorker.value = data.worker_concurrency;
         if (elBatch) elBatch.value = data.batch_write_size;
         if (elSrc) elSrc.value = data.source_concurrency;
         if (elCron) elCron.value = data.cron_expression;
+        if (elMeta) elMeta.value = data.metadata_types || "";
     } catch (e) {
         console.error("加载性能配置失败:", e);
     }
@@ -1265,12 +1290,14 @@ if (settingsForm) {
         const elBatch = document.getElementById("batchWriteSize");
         const elSrc = document.getElementById("sourceConcurrency");
         const elCron = document.getElementById("cronExpression");
+        const elMeta = document.getElementById("metadataTypes");
         
         const payload = {
             worker_concurrency: elWorker ? parseInt(elWorker.value) : 16,
             batch_write_size: elBatch ? parseInt(elBatch.value) : 1000,
             source_concurrency: elSrc ? parseInt(elSrc.value) : 5,
-            cron_expression: elCron ? elCron.value : "0 3 * * *"
+            cron_expression: elCron ? elCron.value : "",
+            metadata_types: elMeta ? elMeta.value : "srt,ass,jpg,png,nfo,mp3,txt"
         };
 
         try {

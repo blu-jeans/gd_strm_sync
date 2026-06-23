@@ -39,6 +39,11 @@ VIDEO_EXTS = {
     '.3gp', '.asf', '.divx'
 }
 
+# 定义常用的元数据文件后缀
+METADATA_EXTS = {
+    '.nfo', '.jpg', '.jpeg', '.png', '.svg', '.ass', '.srt', '.sup', '.mp3', '.flac', '.wav', '.aac'
+}
+
 # ---------------------------------------------------------
 # 获取 emby 用户的 UID
 # ---------------------------------------------------------
@@ -359,7 +364,7 @@ def write_strm_batch(batch, root_dir, uid, gid):
 # ---------------------------------------------------------
 # 清理逻辑
 # ---------------------------------------------------------
-def clean_up(strm_root, valid_strms, source_idx):
+def clean_up(strm_root, valid_strms, valid_metadatas, source_idx, sync_metadata=1):
     removed_files = 0
     removed_dirs = 0
 
@@ -374,6 +379,7 @@ def clean_up(strm_root, valid_strms, source_idx):
         for fn in files:
             full_path = os.path.join(root, fn)
             lower_fn = fn.lower()
+            ext = os.path.splitext(fn)[1].lower()
 
             if lower_fn in JUNK_FILES or fn.startswith("._"):
                 try:
@@ -388,8 +394,15 @@ def clean_up(strm_root, valid_strms, source_idx):
                     try:
                         os.remove(full_path)
                         removed_files += 1
-                        # 日志过多可注释
-                        # print(Fore.YELLOW + f"[Source {source_idx}] Deleted invalid strm: {full_path}")
+                    except OSError: pass
+            
+            # 清理失效的元数据文件（只在开启了元数据同步时，如果本地有的元数据在云端已删除，则清理之）
+            elif sync_metadata and ext in METADATA_EXTS:
+                if full_path not in valid_metadatas:
+                    try:
+                        os.remove(full_path)
+                        removed_files += 1
+                        print(Fore.YELLOW + f"[Source {source_idx}] Deleted invalid metadata: {full_path}")
                     except OSError: pass
         
         # 2. 目录决策
@@ -405,10 +418,19 @@ def clean_up(strm_root, valid_strms, source_idx):
             except OSError: pass
             
         elif not has_valid_strm:
-            # 只有当目录下没有子目录时，才敢断定这是个纯元数据孤儿目录
+            # 检查是否包含有效元数据文件
+            has_valid_metadata = False
+            if sync_metadata:
+                for item in remaining_items:
+                    item_path = os.path.join(root, item)
+                    if item_path in valid_metadatas:
+                        has_valid_metadata = True
+                        break
+            
+            # 只有当目录下没有子目录，且没有有效 strm，也没有有效元数据时，才敢断定这是个纯元数据孤儿目录
             has_subdirs = any(os.path.isdir(os.path.join(root, item)) for item in remaining_items)
             
-            if not has_subdirs:
+            if not has_subdirs and not has_valid_metadata:
                 try:
                     shutil.rmtree(root)
                     removed_dirs += 1
@@ -430,11 +452,12 @@ def process_one_source_task(source_config, force_update):
     gd_root = source_config['gd']
     strm_root = source_config['strm']
     remote_path = source_config['remote_path']
+    sync_metadata = source_config.get('sync_metadata', 1)
 
     # 1. 获取数据 (Rclone)
     file_handle, rclone_elapsed = get_source_data(name, remote_path, force_update)
     if not file_handle:
-        return 0, 0, 0, 0, rclone_elapsed
+        return 0, 0, 0, 0, 0, rclone_elapsed
 
     # 自动探测或从环境变量获取此源的目标所有者 UID/GID 继承设置
     target_uid, target_gid = detect_target_owner(strm_root)
@@ -446,6 +469,7 @@ def process_one_source_task(source_config, force_update):
     # 2. 解析 JSON
     parse_start = time.time()
     items = []
+    metadata_items = []
     try:
         # ijson 在处理大文件时比 json.load 更省内存
         for obj in ijson.items(file_handle, "item"):
@@ -462,18 +486,18 @@ def process_one_source_task(source_config, force_update):
             elif ext in VIDEO_EXTS:
                 is_video = True
             
-            if not is_video:
-                continue
-
-            items.append(obj)
+            if is_video:
+                items.append(obj)
+            elif sync_metadata and ext in METADATA_EXTS:
+                metadata_items.append(obj)
     except Exception as e:
         print(Fore.RED + f"[{name}] ERROR: JSON parse failed: {e}")
         file_handle.close()
-        return 0, 0, 0, 0, rclone_elapsed
+        return 0, 0, 0, 0, 0, rclone_elapsed
 
     file_handle.close()
     parse_time = time.time() - parse_start
-    print(Fore.CYAN + f"[{name}] Parsed {len(items)} items ({parse_time:.2f}s)")
+    print(Fore.CYAN + f"[{name}] Parsed {len(items)} videos and {len(metadata_items)} metadata items ({parse_time:.2f}s)")
 
     # 3. 扫描现有文件
     existing = set()
@@ -523,15 +547,41 @@ def process_one_source_task(source_config, force_update):
             for f in concurrent.futures.as_completed(futures):
                 written += f.result()
 
-    # 6. 清理
-    removed_files, removed_dirs = clean_up(strm_root, valid, name)
+    # 6. 同步元数据文件
+    valid_metadatas = set()
+    metadata_count = 0
+    if sync_metadata:
+        for it in metadata_items:
+            path = it["Path"]
+            dst = os.path.join(strm_root, path)
+            valid_metadatas.add(dst)
+
+        if METADATA_EXTS:
+            print(Fore.YELLOW + f"[{name}] Syncing metadata files...")
+            copy_cmd = ["rclone", "copy", remote_path, strm_root, "--fast-list", "--transfers", "16", "--checkers", "16"]
+            for ext in METADATA_EXTS:
+                ext_name = ext.lstrip('.')
+                copy_cmd.extend(["--include", f"**.{ext_name}"])
+            
+            t_copy_start = time.time()
+            res = subprocess.run(copy_cmd, capture_output=True, text=True)
+            copy_elapsed = time.time() - t_copy_start
+            if res.returncode != 0:
+                print(Fore.RED + f"[{name}] ERROR: rclone copy metadata failed ({copy_elapsed:.2f}s)")
+                print(Fore.RED + res.stderr.strip())
+            else:
+                print(Fore.GREEN + f"[{name}] Rclone copy metadata finished in {copy_elapsed:.2f}s")
+                metadata_count = len(valid_metadatas)
+
+    # 7. 清理
+    removed_files, removed_dirs = clean_up(strm_root, valid, valid_metadatas, name, sync_metadata)
     
     processing_time = time.time() - t0
     total_time = processing_time + rclone_elapsed
     
-    print(Fore.MAGENTA + f"[{name}] DONE. Wrote: {written}, Removed: {removed_files} files / {removed_dirs} dirs. Total: {total_time:.2f}s")
+    print(Fore.MAGENTA + f"[{name}] DONE. Wrote: {written}, Removed: {removed_files} files / {removed_dirs} dirs, Metadata Files: {metadata_count}. Total: {total_time:.2f}s")
     
-    return len(items), written, removed_files, removed_dirs, total_time
+    return len(items), written, removed_files, removed_dirs, metadata_count, total_time
 
 
 # ---------------------------------------------------------
@@ -541,7 +591,7 @@ def load_config(config_file):
     """
     从 INI 配置文件加载配置
     """
-    global WORKER_CONCURRENCY, SOURCE_CONCURRENCY, BATCH_WRITE_SIZE
+    global WORKER_CONCURRENCY, SOURCE_CONCURRENCY, BATCH_WRITE_SIZE, METADATA_EXTS
     
     config = ConfigParser()
     
@@ -556,6 +606,13 @@ def load_config(config_file):
         WORKER_CONCURRENCY = config.getint('global', 'WORKER_CONCURRENCY', fallback=WORKER_CONCURRENCY)
         SOURCE_CONCURRENCY = config.getint('global', 'SOURCE_CONCURRENCY', fallback=SOURCE_CONCURRENCY)
         BATCH_WRITE_SIZE = config.getint('global', 'BATCH_WRITE_SIZE', fallback=BATCH_WRITE_SIZE)
+        
+        metadata_types_str = config.get('global', 'METADATA_TYPES', fallback="nfo,jpg,jpeg,png,svg,ass,srt,sup,mp3,flac,wav,aac")
+        METADATA_EXTS = {
+            f".{ext.strip().lower().lstrip('.')}" 
+            for ext in metadata_types_str.split(',') 
+            if ext.strip()
+        }
     
     # 读取源配置
     sources = []
@@ -570,7 +627,8 @@ def load_config(config_file):
                 "name": section,
                 "gd": config.get(section, 'SOURCE_GD'),
                 "strm": config.get(section, 'SOURCE_STRM'),
-                "remote_path": config.get(section, 'SOURCE_CMD')
+                "remote_path": config.get(section, 'SOURCE_CMD'),
+                "sync_metadata": config.getint(section, 'SYNC_METADATA', fallback=1)
             })
         else:
             print(Fore.YELLOW + f"[WARNING] Incomplete config for section: [{section}]")
@@ -608,6 +666,7 @@ def main():
     total_written = 0
     total_removed_files = 0
     total_removed_dirs = 0
+    total_metadata_synced = 0
     total_time_sum = 0
     
     start_all = time.time()
@@ -624,11 +683,12 @@ def main():
             s = future_to_source[future]
             try:
                 # 获取结果
-                p, w, rf, rd, t = future.result()
+                p, w, rf, rd, mc, t = future.result()
                 total_parsed += p
                 total_written += w
                 total_removed_files += rf
                 total_removed_dirs += rd
+                total_metadata_synced += mc
                 total_time_sum += t
             except Exception as exc:
                 print(Fore.RED + f"[{s['name']}] Generated an exception: {exc}")
@@ -640,6 +700,7 @@ def main():
     print(Fore.GREEN + f"  - Wall Time:     {wall_time:.3f}s")
     print(Fore.GREEN + f"  - Items Parsed:  {total_parsed}")
     print(Fore.GREEN + f"  - Strm Written:  {total_written}")
+    print(Fore.GREEN + f"  - Metadata Synced: {total_metadata_synced}")
     print(Fore.GREEN + f"  - Files Removed: {total_removed_files}")
     print(Fore.GREEN + f"  - Dirs Removed:  {total_removed_dirs}")
     print(Fore.GREEN + "="*50)

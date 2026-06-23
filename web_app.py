@@ -92,6 +92,7 @@ task_stats = {
     "strm_written": 0,
     "files_removed": 0,
     "dirs_removed": 0,
+    "metadata_synced": 0,
     "elapsed_time": 0.0
 }
 
@@ -135,12 +136,14 @@ class SourceRequest(BaseModel):
     gd_path: str
     strm_path: str
     remote_path: str
+    sync_metadata: Optional[int] = 1
 
 class SettingsRequest(BaseModel):
     worker_concurrency: int
     batch_write_size: int
     source_concurrency: int
     cron_expression: str
+    metadata_types: str
 
 # ----------------- 帮助函数 -----------------
 
@@ -189,6 +192,7 @@ def generate_ini_config(source_id: Optional[int] = None) -> str:
     ini_content.append(f"WORKER_CONCURRENCY = {global_cfg.get('WORKER_CONCURRENCY', '16')}")
     ini_content.append(f"BATCH_WRITE_SIZE = {global_cfg.get('BATCH_WRITE_SIZE', '1000')}")
     ini_content.append(f"SOURCE_CONCURRENCY = {global_cfg.get('SOURCE_CONCURRENCY', '5')}")
+    ini_content.append(f"METADATA_TYPES = {global_cfg.get('METADATA_TYPES', 'nfo,jpg,jpeg,png,svg,ass,srt,sup,mp3,flac,wav,aac')}")
     ini_content.append("")
 
     # 各个源部分
@@ -197,6 +201,7 @@ def generate_ini_config(source_id: Optional[int] = None) -> str:
         ini_content.append(f"SOURCE_GD = {src['gd_path']}")
         ini_content.append(f"SOURCE_STRM = {src['strm_path']}")
         ini_content.append(f"SOURCE_CMD = {src['remote_path']}")
+        ini_content.append(f"SYNC_METADATA = {src.get('sync_metadata', 1)}")
         ini_content.append("")
 
     ini_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "strm_config_run.ini")
@@ -219,17 +224,12 @@ def broadcast_log(line: str):
 
 def parse_summary_from_logs(logs_list):
     """从日志行中分析出最终的数据统计"""
-    # [Summary] ALL SOURCES PROCESSED
-    #   - Wall Time:     10.123s
-    #   - Items Parsed:  120
-    #   - Strm Written:  15
-    #   - Files Removed: 2
-    #   - Dirs Removed:  1
     stats = {
         "items_parsed": 0,
         "strm_written": 0,
         "files_removed": 0,
         "dirs_removed": 0,
+        "metadata_synced": 0,
         "elapsed_time": 0.0
     }
     for line in logs_list:
@@ -253,6 +253,10 @@ def parse_summary_from_logs(logs_list):
         elif "Dirs Removed:" in clean:
             try:
                 stats["dirs_removed"] = int(clean.split("Dirs Removed:")[1].strip())
+            except: pass
+        elif "Metadata Synced:" in clean:
+            try:
+                stats["metadata_synced"] = int(clean.split("Metadata Synced:")[1].strip())
             except: pass
     return stats
 
@@ -448,6 +452,7 @@ def run_sync_process(task_id: int, config_file: str, force_update: bool):
         "strm_written": 0,
         "files_removed": 0,
         "dirs_removed": 0,
+        "metadata_synced": 0,
         "elapsed_time": 0.0
     }
     
@@ -514,6 +519,7 @@ def run_sync_process(task_id: int, config_file: str, force_update: bool):
             strm_written=task_stats["strm_written"],
             files_removed=task_stats["files_removed"],
             dirs_removed=task_stats["dirs_removed"],
+            metadata_synced=task_stats["metadata_synced"],
             elapsed_time=task_stats["elapsed_time"],
             log_file=log_file_name
         )
@@ -575,14 +581,14 @@ def list_sources(username: str = Depends(get_current_user)):
 
 @app.post("/api/sources")
 def create_source(req: SourceRequest, username: str = Depends(get_current_user)):
-    success, msg = db.add_sync_source(req.name, req.gd_path, req.strm_path, req.remote_path)
+    success, msg = db.add_sync_source(req.name, req.gd_path, req.strm_path, req.remote_path, req.sync_metadata)
     if not success:
         raise HTTPException(status_code=400, detail=msg)
     return {"message": msg}
 
 @app.put("/api/sources/{source_id}")
 def update_source(source_id: int, req: SourceRequest, username: str = Depends(get_current_user)):
-    success, msg = db.update_sync_source(source_id, req.name, req.gd_path, req.strm_path, req.remote_path)
+    success, msg = db.update_sync_source(source_id, req.name, req.gd_path, req.strm_path, req.remote_path, req.sync_metadata)
     if not success:
         raise HTTPException(status_code=400, detail=msg)
     return {"message": msg}
@@ -740,10 +746,6 @@ def test_rclone_connection(path: str, username: str = Depends(get_current_user))
 
 # ----------------- 系统配置 API -----------------
 
-# hyq: 2026-06-23 Modify get_settings default cron to empty string to comply with default-off policy
-# @app.get("/api/settings")
-# def get_settings(username: str = Depends(get_current_user)):
-#     cfg = db.get_all_global_configs()
 #     return {
 #         "worker_concurrency": int(cfg.get("WORKER_CONCURRENCY", 16)),
 #         "batch_write_size": int(cfg.get("BATCH_WRITE_SIZE", 1000)),
@@ -758,7 +760,8 @@ def get_settings(username: str = Depends(get_current_user)):
         "worker_concurrency": int(cfg.get("WORKER_CONCURRENCY", 16)),
         "batch_write_size": int(cfg.get("BATCH_WRITE_SIZE", 1000)),
         "source_concurrency": int(cfg.get("SOURCE_CONCURRENCY", 5)),
-        "cron_expression": cfg.get("CRON_EXPRESSION", "")
+        "cron_expression": cfg.get("CRON_EXPRESSION", ""),
+        "metadata_types": cfg.get("METADATA_TYPES", "nfo,jpg,jpeg,png,svg,ass,srt,sup,mp3,flac,wav,aac")
     }
 
 @app.post("/api/settings")
@@ -779,7 +782,8 @@ def update_settings(req: SettingsRequest, username: str = Depends(get_current_us
         "WORKER_CONCURRENCY": str(req.worker_concurrency),
         "BATCH_WRITE_SIZE": str(req.batch_write_size),
         "SOURCE_CONCURRENCY": str(req.source_concurrency),
-        "CRON_EXPRESSION": req.cron_expression
+        "CRON_EXPRESSION": req.cron_expression,
+        "METADATA_TYPES": req.metadata_types
     }
     db.update_global_configs(configs)
     

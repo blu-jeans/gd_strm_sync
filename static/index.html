@@ -6,7 +6,7 @@
     <title>控制面板 - STRM 视频同步</title>
     <!-- hyq: 2026-06-23 Modify for CSS cache buster -->
     <!-- <link rel="stylesheet" href="/static/css/style.css"> -->
-    <link rel="stylesheet" href="/static/css/style.css?v=20260623_03">
+    <link rel="stylesheet" href="/static/css/style.css?v=20260623_04">
 </head>
 <body data-sidebar="expanded">
     <!-- hyq: 2026-06-23 Add inline theme initialization script to prevent light-theme flash -->
@@ -78,6 +78,13 @@
                         <div class="stat-info">
                             <h4>最近写入 STRM</h4>
                             <p id="statWritten">0</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📄</div>
+                        <div class="stat-info">
+                            <h4>最近同步元数据</h4>
+                            <p id="statMetadata">0</p>
                         </div>
                     </div>
                     <div class="stat-card">
@@ -219,6 +226,11 @@
                                 <input type="text" id="cronExpression" class="form-control" placeholder="如: 0 3 * * * (留空代表关闭定时同步)">
                                 <small style="color: var(--text-muted); font-size:11px; margin-top:4px; display:block;">格式: [分] [时] [日] [月] [周]。默认 `0 3 * * *` 为每天凌晨 3:00。留空可关闭定时。</small>
                             </div>
+                            <div class="form-group">
+                                <label for="metadataTypes">元数据文件后缀设置 (METADATA_TYPES)</label>
+                                <input type="text" id="metadataTypes" class="form-control" placeholder="如: nfo,jpg,jpeg,png,svg,ass,srt,sup,mp3,flac,wav,aac">
+                                <small style="color: var(--text-muted); font-size:11px; margin-top:4px; display:block;">以英文逗号分隔。同步源会把这些后缀的文件直接拷贝至本地。</small>
+                            </div>
                             <button type="submit" class="btn btn-primary" style="margin-top: 10px;">💾 保存配置</button>
                         </form>
                     </div>
@@ -292,6 +304,10 @@
                         </div>
                         <div id="testRcloneResult" style="margin-top: 6px; font-size: 12px; display: none;"></div>
                     </div>
+                    <div class="form-group checkbox-group" style="display: flex; align-items: center; gap: 8px; margin-top: 10px;">
+                        <input type="checkbox" id="sourceSyncMetadata" style="width: auto; margin: 0;" checked>
+                        <label for="sourceSyncMetadata" style="margin: 0; font-weight: normal; cursor: pointer;">是否同步元数据 (默认开启)</label>
+                    </div>
                 </div>
 
                 <div class="modal-footer">
@@ -304,6 +320,6 @@
 
     <!-- hyq: 2026-06-23 Modify for JS cache buster -->
     <!-- <script src="/static/js/app.js"></script> -->
-    <script src="/static/js/app.js?v=20260623_06"></script>
+    <script src="/static/js/app.js?v=20260623_07"></script>
 </body>
 </html>

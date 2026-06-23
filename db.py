@@ -17,12 +17,14 @@ import hashlib
 _base_dir = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(_base_dir, "cache", "strm_sync.db")
 
+# 确保 cache 目录已存在，修复 unable to open database 报错
+os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+
 # 迁移旧数据库文件的平滑防灾设计
 _old_db_path = os.path.join(_base_dir, "strm_sync.db")
 if os.path.exists(_old_db_path) and not os.path.exists(DB_PATH):
     try:
         import shutil
-        os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
         shutil.move(_old_db_path, DB_PATH)
     except Exception:
         pass
@@ -94,9 +96,17 @@ def init_db():
         gd_path TEXT NOT NULL,
         strm_path TEXT NOT NULL,
         remote_path TEXT NOT NULL,
+        sync_metadata INTEGER DEFAULT 1,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """)
+
+    # 兼容性升级：检查并添加 sync_metadata 字段
+    try:
+        cursor.execute("ALTER TABLE sync_sources ADD COLUMN sync_metadata INTEGER DEFAULT 1")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass
 
     # 4. 创建任务表
     cursor.execute("""
@@ -111,10 +121,18 @@ def init_db():
         strm_written INTEGER DEFAULT 0,
         files_removed INTEGER DEFAULT 0,
         dirs_removed INTEGER DEFAULT 0,
+        metadata_synced INTEGER DEFAULT 0,
         elapsed_time REAL DEFAULT 0.0,
         log_file TEXT
     );
     """)
+
+    # 兼容性升级：检查并添加 metadata_synced 字段
+    try:
+        cursor.execute("ALTER TABLE sync_tasks ADD COLUMN metadata_synced INTEGER DEFAULT 0")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass
 
     conn.commit()
 
@@ -132,7 +150,8 @@ def init_db():
         ("SOURCE_CONCURRENCY", "5"),
         # hyq: 2026-06-23 Modify default CRON_EXPRESSION to empty string to disable schedule by default
         # ("CRON_EXPRESSION", "0 3 * * *") # 默认每天凌晨 3 点同步
-        ("CRON_EXPRESSION", "")
+        ("CRON_EXPRESSION", ""),
+        ("METADATA_TYPES", "nfo,jpg,jpeg,png,svg,ass,srt,sup,mp3,flac,wav,aac")
     ]
     for key, val in default_configs:
         try:
@@ -206,13 +225,13 @@ def get_source_by_id(source_id):
     conn.close()
     return dict(row) if row else None
 
-def add_sync_source(name, gd_path, strm_path, remote_path):
+def add_sync_source(name, gd_path, strm_path, remote_path, sync_metadata=1):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
         cursor.execute(
-            "INSERT INTO sync_sources (name, gd_path, strm_path, remote_path) VALUES (?, ?, ?, ?)",
-            (name, gd_path, strm_path, remote_path)
+            "INSERT INTO sync_sources (name, gd_path, strm_path, remote_path, sync_metadata) VALUES (?, ?, ?, ?, ?)",
+            (name, gd_path, strm_path, remote_path, sync_metadata)
         )
         conn.commit()
         success, msg = True, "添加源成功"
@@ -222,13 +241,13 @@ def add_sync_source(name, gd_path, strm_path, remote_path):
         conn.close()
     return success, msg
 
-def update_sync_source(source_id, name, gd_path, strm_path, remote_path):
+def update_sync_source(source_id, name, gd_path, strm_path, remote_path, sync_metadata=1):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
         cursor.execute(
-            "UPDATE sync_sources SET name = ?, gd_path = ?, strm_path = ?, remote_path = ? WHERE id = ?",
-            (name, gd_path, strm_path, remote_path, source_id)
+            "UPDATE sync_sources SET name = ?, gd_path = ?, strm_path = ?, remote_path = ?, sync_metadata = ? WHERE id = ?",
+            (name, gd_path, strm_path, remote_path, sync_metadata, source_id)
         )
         conn.commit()
         success, msg = True, "修改源成功"
@@ -261,16 +280,16 @@ def create_sync_task(trigger_type, force_update):
     conn.close()
     return task_id
 
-def finish_sync_task(task_id, status, items_parsed=0, strm_written=0, files_removed=0, dirs_removed=0, elapsed_time=0.0, log_file=""):
+def finish_sync_task(task_id, status, items_parsed=0, strm_written=0, files_removed=0, dirs_removed=0, metadata_synced=0, elapsed_time=0.0, log_file=""):
     conn = get_db_connection()
     cursor = conn.cursor()
     end_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     cursor.execute(
         """UPDATE sync_tasks SET 
             status = ?, end_time = ?, items_parsed = ?, strm_written = ?, 
-            files_removed = ?, dirs_removed = ?, elapsed_time = ?, log_file = ?
+            files_removed = ?, dirs_removed = ?, metadata_synced = ?, elapsed_time = ?, log_file = ?
            WHERE id = ?""",
-        (status, end_time, items_parsed, strm_written, files_removed, dirs_removed, elapsed_time, log_file, task_id)
+        (status, end_time, items_parsed, strm_written, files_removed, dirs_removed, metadata_synced, elapsed_time, log_file, task_id)
     )
     conn.commit()
     conn.close()
