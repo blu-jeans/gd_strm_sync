@@ -1,0 +1,10 @@
+ijson
+pymysql
+redis
+python-dateutil
+fastapi>=0.100.0
+uvicorn>=0.22.0
+pyjwt>=2.8.0
+bcrypt>=4.0.1
+apscheduler>=3.10.1
+colorama

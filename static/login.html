@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 - STRM 视频同步控制面板</title>
+    <!-- hyq: 2026-06-23 Modify for CSS cache buster -->
+    <!-- <link rel="stylesheet" href="/static/css/style.css"> -->
+    <link rel="stylesheet" href="/static/css/style.css?v=20260623_01">
+</head>
+<body class="login-body">
+    <!-- hyq: 2026-06-23 Add inline theme initialization script for login dark theme support -->
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem("themeState");
+            const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+            if (savedTheme === "dark" || (!savedTheme && systemDark)) {
+                document.body.setAttribute("data-theme", "dark");
+            } else {
+                document.body.setAttribute("data-theme", "light");
+            }
+        })();
+    </script>
+    <div class="login-wrapper">
+        <div class="login-card">
+            <h1 class="login-logo">⚡ <span>STRM Sync</span></h1>
+            <p class="login-subtitle">视频镜像管理系统登录</p>
+            
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="username">管理员账号</label>
+                    <input type="text" id="username" class="form-control" placeholder="请输入用户名" required autocomplete="username">
+                </div>
+                <div class="form-group">
+                    <label for="password">验证密码</label>
+                    <input type="password" id="password" class="form-control" placeholder="请输入密码" required autocomplete="current-password">
+                </div>
+                
+                <button type="submit" id="loginBtn" class="btn btn-primary" style="width: 100%; margin-top: 15px;">
+                    🔑 立即登录
+                </button>
+            </form>
+            
+            <div id="errorMsg" style="margin-top: 15px; font-size: 13px; color: var(--danger); font-weight: 500; display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        // 如果已经有 token，直接跳转到主页
+        if (localStorage.getItem("token")) {
+            window.location.href = "/";
+        }
+
+        const loginForm = document.getElementById("loginForm");
+        const loginBtn = document.getElementById("loginBtn");
+        const errorMsg = document.getElementById("errorMsg");
+
+        loginForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            errorMsg.style.display = "none";
+            
+            const username = document.getElementById("username").value;
+            const password = document.getElementById("password").value;
+            
+            loginBtn.disabled = true;
+            loginBtn.innerText = "⚡ 正在验证...";
+
+            try {
+                const response = await fetch("/api/auth/login", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    localStorage.setItem("token", data.token);
+                    localStorage.setItem("username", data.username);
+                    window.location.href = "/";
+                } else {
+                    errorMsg.innerText = data.detail || "登录验证失败";
+                    errorMsg.style.display = "block";
+                }
+            } catch (err) {
+                errorMsg.innerText = "无法连接至后端服务";
+                errorMsg.style.display = "block";
+            } finally {
+                loginBtn.disabled = false;
+                loginBtn.innerText = "🔑 立即登录";
+            }
+        });
+    </script>
+</body>
+</html>

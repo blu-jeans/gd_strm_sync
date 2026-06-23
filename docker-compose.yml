@@ -1,0 +1,33 @@
+# =================================================================
+# STRM 同步与控制面板 Docker Compose 配置文件
+# @author: hyq
+# @version: 2026-06-23
+# =================================================================
+
+version: '3.8'
+
+services:
+  strm-sync-panel:
+    image: fckipk/strm-sync-panel:latest
+    container_name: strm-sync-panel
+    restart: always
+    ports:
+      - "9000:8000"
+    environment:
+      # 宿主机上emby用户的UID和GID，解决容器内外权限冲突问题，请根据id emby的实际结果替换
+      - EMBY_UID=998
+      - EMBY_GID=997
+      # 动态配置容器内可以安全加载的谷歌盘挂载根路径与 STRM 生成根路径。
+      # 小白用户如果修改了下方 volumes 的挂载关系，只需在此对应修改即可，系统会自动适配！
+      - GD_ROOT=/mnt
+      - STRM_ROOT=/mnt/strm
+    volumes:
+      # 持久化缓存与日志数据，直接挂载在源目录下的 cache 和 logs 目录
+      - ./cache:/app/cache
+      - ./logs:/app/logs
+      # 挂载宿主机 rclone 配置文件目录 (只读)，确保容器内能识别远程网盘
+      - /root/.config/rclone:/root/.config/rclone:ro
+      # 挂载宿主机 rclone 的 Service Account 证书目录 (只读)，防止 accounts 文件找不到，没使用SA的可以忽略此配置
+      - /root/accounts:/root/accounts:ro
+      # 挂载宿主机的媒体根目录与 strm 目的目录
+      - /mnt:/mnt

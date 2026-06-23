@@ -1,0 +1,848 @@
+/* 
+ * STRM Sync Dashboard CSS Design System
+ * 采用现代 CSS 变量、毛玻璃拟态(Glassmorphism)及柔和过渡微动画。
+ * @author: hyq
+ * @version: 2026-06-23
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* ============================================
+   1. 设计系统变量 (CSS Variables)
+   ============================================ */
+:root, [data-theme="light"] {
+    --primary: hsl(224, 85%, 58%);
+    --primary-hover: hsl(224, 85%, 48%);
+    --primary-glow: hsla(224, 85%, 58%, 0.15);
+    
+    --bg-gradient: radial-gradient(circle at 0% 0%, #f8fafc 0%, #f1f5f9 100%);
+    --bg: #f8fafc;
+    --surface: rgba(255, 255, 255, 0.85);
+    --surface-border: rgba(226, 232, 240, 0.8);
+    --border: #e2e8f0;
+    --text: #0f172a;
+    --text-muted: #64748b;
+    
+    --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03), 0 10px 15px -3px rgba(0, 0, 0, 0.03);
+    --card-blur: blur(16px);
+    
+    --sidebar-bg: #090d16;
+    --sidebar-text: #94a3b8;
+    --sidebar-active: #ffffff;
+    --sidebar-width: 260px;
+    
+    --success: #10b981;
+    --danger: #ef4444;
+    --warning: #f59e0b;
+    
+    --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+[data-theme="dark"] {
+    --primary: hsl(224, 100%, 66%);
+    --primary-hover: hsl(224, 100%, 75%);
+    --primary-glow: hsla(224, 100%, 66%, 0.25);
+    
+    --bg-gradient: radial-gradient(circle at 0% 0%, #0f172a 0%, #020617 100%);
+    --bg: #0b0f19;
+    --surface: rgba(15, 23, 42, 0.65);
+    --surface-border: rgba(51, 65, 85, 0.6);
+    --border: #1e293b;
+    --text: #f8fafc;
+    --text-muted: #94a3b8;
+    
+    --card-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+    
+    --sidebar-bg: #030712;
+    --sidebar-text: #64748b;
+    --sidebar-active: #f8fafc;
+    
+    --success: #34d399;
+    --danger: #f87171;
+    --warning: #fbbf24;
+}
+
+/* ============================================
+   2. 基础布局与复位 (Base & Layout)
+   ============================================ */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    background-image: var(--bg-gradient);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    overflow-x: hidden;
+    transition: background 0.4s ease, color 0.4s ease;
+}
+
+/* 滚动条优化 */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+}
+
+/* ============================================
+   3. 侧边栏 (Sidebar Style)
+   ============================================ */
+.sidebar {
+    width: var(--sidebar-width);
+    background: var(--sidebar-bg);
+    color: var(--sidebar-text);
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    transition: var(--transition);
+    padding: 24px 16px;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 10px 0 30px rgba(0,0,0,0.2);
+}
+
+.sidebar-brand {
+    font-family: 'Outfit', sans-serif;
+    font-size: 20px;
+    font-weight: 800;
+    color: #fff;
+    margin-bottom: 32px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-left: 8px;
+}
+
+.sidebar-brand span {
+    background: linear-gradient(135deg, var(--primary), #d946ef);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.sidebar-menu {
+    list-style: none;
+    flex-grow: 1;
+}
+
+.sidebar-menu li {
+    margin-bottom: 6px;
+}
+
+.sidebar-menu a {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    color: var(--sidebar-text);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: 10px;
+    transition: var(--transition);
+}
+
+.sidebar-menu a:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: #fff;
+}
+
+.sidebar-menu li.active a {
+    background: var(--primary);
+    color: var(--sidebar-active);
+    box-shadow: 0 4px 12px var(--primary-glow);
+}
+
+/* 主题与注销面板 */
+.sidebar-footer {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: auto;
+}
+
+.sidebar-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    color: #94a3b8;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: var(--transition);
+}
+
+.sidebar-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+/* 侧边栏折叠按钮 */
+.sidebar-toggle {
+    position: fixed;
+    left: calc(var(--sidebar-width) + 16px);
+    top: 16px;
+    z-index: 101;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 1px solid var(--surface-border);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition);
+    color: var(--text);
+    box-shadow: var(--card-shadow);
+    backdrop-filter: var(--card-blur);
+}
+
+.sidebar-toggle:hover {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+    transform: scale(1.05);
+}
+
+/* 折叠核心结构变更 */
+.main-wrapper {
+    flex: 1;
+    margin-left: var(--sidebar-width);
+    transition: var(--transition);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.content-container {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 40px 48px;
+    box-sizing: border-box;
+}
+
+/* 折叠属性交互 */
+body[data-sidebar="collapsed"] .sidebar {
+    transform: translateX(-100%);
+}
+body[data-sidebar="collapsed"] .sidebar-toggle {
+    left: 16px;
+}
+body[data-sidebar="collapsed"] .main-wrapper {
+    margin-left: 0;
+}
+
+/* ============================================
+   4. 前端排版与基础组件 (Typography & Cards)
+   ============================================ */
+h1, h2, h3, h4 {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 700;
+    margin-bottom: 0.5em;
+}
+
+h1 {
+    font-size: 28px;
+    background: linear-gradient(135deg, var(--text), var(--text-muted));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+p.subtitle {
+    color: var(--text-muted);
+    font-size: 14px;
+    margin-bottom: 30px;
+}
+
+/* 毛玻璃卡片 */
+.card {
+    background: var(--surface);
+    border: 1px solid var(--surface-border);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: var(--card-shadow);
+    backdrop-filter: var(--card-blur);
+    transition: var(--transition);
+    position: relative;
+    overflow: hidden;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 20px -5px rgba(0, 0, 0, 0.08);
+}
+
+/* 网格布局 */
+.grid-3 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+/* ============================================
+   5. 数据卡片 (Stats Card)
+   ============================================ */
+.stat-group {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.stat-card {
+    background: var(--surface);
+    border: 1px solid var(--surface-border);
+    border-radius: 16px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    box-shadow: var(--card-shadow);
+    backdrop-filter: var(--card-blur);
+    transition: var(--transition);
+}
+
+.stat-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: var(--primary-glow);
+    color: var(--primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+}
+
+.stat-info h4 {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+.stat-info p {
+    font-family: 'Outfit', sans-serif;
+    font-size: 24px;
+    font-weight: 700;
+    margin-top: 2px;
+}
+
+/* ============================================
+   6. 按钮与表单 (Buttons & Inputs)
+   ============================================ */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 10px;
+    border: none;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.btn-primary {
+    background: var(--primary);
+    color: #fff;
+    box-shadow: 0 4px 12px var(--primary-glow);
+}
+
+.btn-primary:hover {
+    background: var(--primary-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px var(--primary-glow);
+}
+
+.btn-secondary {
+    background: var(--border);
+    color: var(--text);
+}
+
+.btn-secondary:hover {
+    background: var(--text-muted);
+    color: #fff;
+}
+
+.btn-danger {
+    background: var(--danger);
+    color: white;
+}
+.btn-danger:hover {
+    background: #dc2626;
+}
+
+/* 按钮图标旋转微动画 */
+.spinning {
+    animation: rotate 1s linear infinite;
+}
+@keyframes rotate {
+    100% { transform: rotate(360deg); }
+}
+
+/* 表单输入框 */
+.form-group {
+    margin-bottom: 18px;
+}
+
+.form-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: var(--text-muted);
+}
+
+.form-control {
+    width: 100%;
+    padding: 11px 14px;
+    font-size: 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text);
+    outline: none;
+    transition: var(--transition);
+}
+
+.form-control:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-glow);
+}
+
+/* hyq: 2026-06-23 Add select option styling to fix white text on white background in dropdowns */
+select.form-control option {
+    background-color: var(--bg);
+    color: var(--text);
+}
+
+/* ============================================
+   7. 同步源管理 (Source Cards & Layout)
+   ============================================ */
+.sources-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.source-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 20px;
+}
+
+.source-card {
+    display: flex;
+    flex-direction: column;
+}
+
+.source-card-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 12px;
+    margin-bottom: 14px;
+}
+
+.source-card-title h3 {
+    font-size: 16px;
+    margin: 0;
+}
+
+.source-path-item {
+    font-size: 12px;
+    margin-bottom: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.source-path-item strong {
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+.source-path-item span {
+    font-family: 'JetBrains Mono', monospace;
+    background: rgba(0, 0, 0, 0.03);
+    padding: 4px 8px;
+    border-radius: 6px;
+    overflow-x: auto;
+}
+
+[data-theme="dark"] .source-path-item span {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.source-card-actions {
+    margin-top: auto;
+    padding-top: 14px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+/* ============================================
+   8. 日志控制台 (Console UI)
+   ============================================ */
+.console-wrapper {
+    display: flex;
+    flex-direction: column;
+    height: 500px;
+    background: #090d16;
+    border: 1px solid #1e293b;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.console-header {
+    background: #020617;
+    padding: 12px 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #1e293b;
+}
+
+.console-title {
+    color: #94a3b8;
+    font-size: 13px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.console-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--success);
+}
+
+.console-dot.inactive {
+    background: var(--text-muted);
+}
+
+.console-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.console-btn {
+    background: transparent;
+    border: none;
+    color: #64748b;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    transition: var(--transition);
+}
+
+.console-btn:hover {
+    color: #f8fafc;
+    background: rgba(255,255,255,0.05);
+}
+
+.console-body {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #e2e8f0;
+}
+
+.log-line {
+    white-space: pre-wrap;
+    word-break: break-all;
+    margin-bottom: 4px;
+}
+
+/* 日志着色 */
+.log-error { color: #f87171; }
+.log-warning { color: #fbbf24; }
+.log-success { color: #34d399; }
+.log-info { color: #60a5fa; }
+.log-accent { color: #c084fc; }
+
+/* ============================================
+   9. 弹窗组件 (Modal Dialog)
+   ============================================ */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(4px);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: var(--transition);
+}
+
+.modal-overlay.show {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* hyq: 2026-06-23 Modify .modal-content to support flex scroll layouts */
+/* .modal-content {
+    background: var(--surface);
+    border: 1px solid var(--surface-border);
+    border-radius: 16px;
+    width: 100%;
+    max-width: 500px;
+    padding: 24px;
+    box-shadow: var(--card-shadow);
+    transform: scale(0.95);
+    transition: var(--transition);
+} */
+
+.modal-content {
+    background: var(--surface);
+    border: 1px solid var(--surface-border);
+    border-radius: 16px;
+    width: 100%;
+    max-width: 500px;
+    max-height: 90vh; /* 限制最高占视口高度的 90% */
+    padding: 24px;
+    box-shadow: var(--card-shadow);
+    transform: scale(0.95);
+    transition: var(--transition);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.modal-overlay.show .modal-content {
+    transform: scale(1);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    flex-shrink: 0; /* 头部大小固定，不参与缩放 */
+}
+
+/* hyq: 2026-06-23 Restore .modal-close style */
+.modal-close {
+    background: transparent;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    color: var(--text-muted);
+}
+
+/* hyq: 2026-06-23 Add styles for form scroll container */
+#sourceForm {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-grow: 1;
+}
+
+.modal-body {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding-right: 6px;
+    margin-bottom: 12px;
+}
+
+/* 自定义模态框滚动条，确保美观度 */
+.modal-body::-webkit-scrollbar {
+    width: 6px;
+}
+.modal-body::-webkit-scrollbar-track {
+    background: transparent;
+}
+.modal-body::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 3px;
+}
+.modal-body::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+}
+
+/* hyq: 2026-06-23 Modify .modal-footer top margin */
+/* .modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 24px;
+} */
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: auto; /* 自动向下对齐 */
+    padding-top: 12px;
+    border-top: 1px solid var(--surface-border);
+    flex-shrink: 0; /* 底部固定，不参与缩放 */
+}
+
+/* ============================================
+   10. 登录页面样式 (Login Page)
+   ============================================ */
+.login-body {
+    background-image: radial-gradient(circle at 10% 20%, rgba(4, 9, 30, 0.95) 0%, rgba(13, 24, 63, 0.95) 90%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.login-wrapper {
+    width: 100%;
+    max-width: 420px;
+    padding: 20px;
+}
+
+.login-card {
+    background: rgba(15, 23, 42, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    padding: 40px 32px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(20px);
+    text-align: center;
+}
+
+.login-logo {
+    font-family: 'Outfit', sans-serif;
+    font-size: 26px;
+    font-weight: 800;
+    color: #fff;
+    margin-bottom: 8px;
+}
+
+.login-logo span {
+    background: linear-gradient(135deg, #60a5fa, #d946ef);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.login-subtitle {
+    color: #94a3b8;
+    font-size: 13px;
+    margin-bottom: 30px;
+}
+
+.login-card label {
+    text-align: left;
+    color: #94a3b8;
+}
+
+.login-card .form-control {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.login-card .form-control:focus {
+    border-color: #60a5fa;
+    box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2);
+}
+
+/* ============================================
+   11. 表格与历史记录 (Table UI)
+   ============================================ */
+.table-responsive {
+    overflow-x: auto;
+    margin-top: 15px;
+}
+
+.table-custom {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.table-custom th, .table-custom td {
+    padding: 12px 16px;
+    font-size: 13px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+}
+
+.table-custom th {
+    background: rgba(0, 0, 0, 0.01);
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+[data-theme="dark"] .table-custom th {
+    background: rgba(255, 255, 255, 0.01);
+}
+
+.status-badge {
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.status-success { background: rgba(16, 185, 129, 0.1); color: var(--success); }
+.status-failed { background: rgba(239, 68, 68, 0.1); color: var(--danger); }
+.status-running { background: rgba(59, 130, 246, 0.1); color: var(--primary); }
+.status-stopped { background: rgba(100, 116, 139, 0.1); color: var(--text-muted); }
+
+/* ============================================
+   12. 响应式布局 (Responsive)
+   ============================================ */
+@media (max-width: 900px) {
+    .sidebar {
+        transform: translateX(-100%);
+    }
+    .main-wrapper {
+        margin-left: 0;
+    }
+    .sidebar-toggle {
+        left: 16px;
+    }
+    body[data-sidebar="expanded"] .sidebar {
+        transform: translateX(0);
+    }
+    body[data-sidebar="expanded"] .sidebar-toggle {
+        left: calc(var(--sidebar-width) + 16px);
+    }
+    .content-container {
+        padding: 30px 20px;
+    }
+}

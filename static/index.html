@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>控制面板 - STRM 视频同步</title>
+    <!-- hyq: 2026-06-23 Modify for CSS cache buster -->
+    <!-- <link rel="stylesheet" href="/static/css/style.css"> -->
+    <link rel="stylesheet" href="/static/css/style.css?v=20260623_03">
+</head>
+<body data-sidebar="expanded">
+    <!-- hyq: 2026-06-23 Add inline theme initialization script to prevent light-theme flash -->
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem("themeState");
+            const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+            if (savedTheme === "dark" || (!savedTheme && systemDark)) {
+                document.body.setAttribute("data-theme", "dark");
+            } else {
+                document.body.setAttribute("data-theme", "light");
+            }
+        })();
+    </script>
+    <!-- 侧边栏 -->
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <span>⚡ STRM Sync</span>
+        </div>
+        <ul class="sidebar-menu">
+            <li class="menu-item active" data-target="dashboard">
+                <a href="javascript:void(0)">📊 状态看板</a>
+            </li>
+            <li class="menu-item" data-target="sources">
+                <a href="javascript:void(0)">⚙️ 同步源管理</a>
+            </li>
+            <li class="menu-item" data-target="console">
+                <a href="javascript:void(0)">📜 实时日志</a>
+            </li>
+            <li class="menu-item" data-target="settings">
+                <a href="javascript:void(0)">🔧 系统设置</a>
+            </li>
+        </ul>
+        <div class="sidebar-footer">
+            <button class="sidebar-btn" id="themeToggleBtn">🌗 切换黑暗模式</button>
+            <button class="sidebar-btn" id="logoutBtn" style="color: var(--danger);">🚪 安全退出</button>
+        </div>
+    </aside>
+
+    <!-- 折叠侧边栏悬浮按钮 -->
+    <button class="sidebar-toggle">☰</button>
+
+    <!-- 主工作区 -->
+    <div class="main-wrapper">
+        <div class="content-container">
+            
+            <!-- 1. 状态看板 -->
+            <section id="dashboardSection" class="page-section">
+                <h1>系统运行状态</h1>
+                <p class="subtitle">实时监控您的 STRM 镜像同步与系统负载</p>
+                
+                <div class="stat-group">
+                    <div class="stat-card">
+                        <div class="stat-icon">📁</div>
+                        <div class="stat-info">
+                            <h4>同步数据源</h4>
+                            <p id="statSourceCount">0 个</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🔄</div>
+                        <div class="stat-info">
+                            <h4>最近解析视频</h4>
+                            <p id="statParsed">0</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">✏️</div>
+                        <div class="stat-info">
+                            <h4>最近写入 STRM</h4>
+                            <p id="statWritten">0</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🗑️</div>
+                        <div class="stat-info">
+                            <h4>最近清理孤儿文件</h4>
+                            <p id="statRemoved">0</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid-3">
+                    <!-- 快捷操作卡片 -->
+                    <div class="card" style="display: flex; flex-direction: column; justify-content: center;">
+                        <h3 style="margin-bottom: 12px;">同步任务控制</h3>
+                        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 24px; line-height: 1.5;">
+                            您可以手动触发全量同步。系统将动态读取最新的配置项，调用多线程加速。
+                        </p>
+                        <div style="display: flex; gap: 10px;">
+                            <button id="runSyncBtn" class="btn btn-primary">🚀 开始同步</button>
+                            <button id="runSyncForceBtn" class="btn btn-secondary">⚡ 强刷缓存同步</button>
+                            <button id="stopSyncBtn" class="btn btn-danger" style="display: none;">🛑 终止</button>
+                        </div>
+                        <div id="syncStatusTip" style="margin-top: 15px; font-size: 13px; font-weight: 600; display: none;"></div>
+                    </div>
+
+                    <!-- 运行信息卡片 -->
+                    <div class="card">
+                        <h3 style="margin-bottom: 12px;">定时自动同步</h3>
+                        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px; line-height: 1.5;">
+                            定时引擎已启动。如需修改定时频率，请前往 <strong>系统设置</strong> 修改。
+                        </p>
+                        <div style="background: rgba(0,0,0,0.02); padding: 12px; border-radius: 8px; font-size: 13px;">
+                            <div style="margin-bottom: 8px; display: flex; justify-content: space-between;">
+                                <span style="color: var(--text-muted);">当前触发规则 (Cron)</span>
+                                <strong id="dashCronText">-</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span style="color: var(--text-muted);">下一次同步机制</span>
+                                <span id="dashCronStatus" class="status-badge status-success" style="font-size:10px;">等待调度</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 历史执行记录表 -->
+                <div class="card" style="margin-top: 25px;">
+                    <h3>最近同步历史</h3>
+                    <div class="table-responsive">
+                        <table class="table-custom">
+                            <thead>
+                                <tr>
+                                    <th>任务ID</th>
+                                    <th>触发方式</th>
+                                    <th>状态</th>
+                                    <th>解析条数</th>
+                                    <th>写入数</th>
+                                    <th>清理数</th>
+                                    <th>运行耗时</th>
+                                    <th>开始时间</th>
+                                    <th>日志</th>
+                                </tr>
+                            </thead>
+                            <tbody id="taskHistoryBody">
+                                <tr>
+                                    <td colspan="9" style="text-align: center; color: var(--text-muted);">暂无执行记录</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 2. 同步源管理 -->
+            <section id="sourcesSection" class="page-section" style="display: none;">
+                <div class="sources-header">
+                    <div>
+                        <h1>同步源管理</h1>
+                        <p class="subtitle" style="margin-bottom:0;">配置谷歌云盘目录与本地 .strm 文件夹映射</p>
+                    </div>
+                    <button id="addSourceBtn" class="btn btn-primary">➕ 新增同步源</button>
+                </div>
+                
+                <div class="source-grid" id="sourceGridContainer">
+                    <!-- 同步源卡片列表动态渲染 -->
+                </div>
+            </section>
+
+            <!-- 3. 实时日志 -->
+            <section id="consoleSection" class="page-section" style="display: none;">
+                <h1>运行控制台</h1>
+                <p class="subtitle">流式传输 rclone 及 strm 解析同步控制日志</p>
+                
+                <div class="console-wrapper">
+                    <div class="console-header">
+                        <div class="console-title">
+                            <span class="console-dot" id="consoleStatusDot"></span>
+                            <span id="consoleStatusText">已就绪</span>
+                        </div>
+                        <div class="console-actions">
+                            <button class="console-btn" id="clearConsoleBtn">🧹 清屏</button>
+                            <button class="console-btn" id="scrollToggleBtn">⬇️ 自动滚动: 开启</button>
+                        </div>
+                    </div>
+                    <div class="console-body" id="consoleLogsBody">
+                        <div class="log-line log-info">控制台已准备就绪，点击主页的“立即同步”可以在此处监控实时输出。</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 4. 系统设置 -->
+            <section id="settingsSection" class="page-section" style="display: none;">
+                <h1>全局系统设置</h1>
+                <p class="subtitle">调整同步引擎性能参数及管理访问安全</p>
+                
+                <div class="grid-3" style="grid-template-columns: 1fr 1fr; align-items: start;">
+                    <!-- 性能设置 -->
+                    <div class="card">
+                        <h3 style="margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">⚙️ 性能配置</h3>
+                        <form id="settingsForm">
+                            <div class="form-group">
+                                <label for="workerConcurrency">写入并发线程数 (WORKER_CONCURRENCY)</label>
+                                <input type="number" id="workerConcurrency" class="form-control" min="1" max="128" required>
+                                <small style="color: var(--text-muted); font-size:11px; margin-top:4px; display:block;">单个同步源内部并行创建并写入 strm 文件的线程数，适合小文件高并发写入。</small>
+                            </div>
+                            <div class="form-group">
+                                <label for="batchWriteSize">批量写入区块大小 (BATCH_WRITE_SIZE)</label>
+                                <input type="number" id="batchWriteSize" class="form-control" min="10" max="5000" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="sourceConcurrency">源级并发数 (SOURCE_CONCURRENCY)</label>
+                                <input type="number" id="sourceConcurrency" class="form-control" min="1" max="20" required>
+                                <small style="color: var(--text-muted); font-size:11px; margin-top:4px; display:block;">允许同时运行多少个同步源。太高可能导致 rclone lsjson 阻塞。</small>
+                            </div>
+                            <div class="form-group">
+                                <label for="cronExpression">自动同步定时 (Cron Expression)</label>
+                                <!-- hyq: 2026-06-23 Modify cronExpression to allow empty string (disable schedule) -->
+                                <!-- <input type="text" id="cronExpression" class="form-control" required placeholder="如: 0 3 * * *"> -->
+                                <input type="text" id="cronExpression" class="form-control" placeholder="如: 0 3 * * * (留空代表关闭定时同步)">
+                                <small style="color: var(--text-muted); font-size:11px; margin-top:4px; display:block;">格式: [分] [时] [日] [月] [周]。默认 `0 3 * * *` 为每天凌晨 3:00。留空可关闭定时。</small>
+                            </div>
+                            <button type="submit" class="btn btn-primary" style="margin-top: 10px;">💾 保存配置</button>
+                        </form>
+                    </div>
+
+                    <!-- 修改密码 -->
+                    <div class="card">
+                        <h3 style="margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">🔐 安全修改密码</h3>
+                        <form id="passwordForm">
+                            <div class="form-group">
+                                <label for="oldPassword">当前原密码</label>
+                                <input type="password" id="oldPassword" class="form-control" required autocomplete="current-password">
+                            </div>
+                            <div class="form-group">
+                                <label for="newPassword">新密码</label>
+                                <input type="password" id="newPassword" class="form-control" required autocomplete="new-password">
+                            </div>
+                            <div class="form-group">
+                                <label for="confirmPassword">确认新密码</label>
+                                <input type="password" id="confirmPassword" class="form-control" required autocomplete="new-password">
+                            </div>
+                            <button type="submit" class="btn btn-danger" style="margin-top: 10px;">🔑 更新密码</button>
+                        </form>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </div>
+
+    <!-- 新建/编辑同步源模态弹窗 -->
+    <div class="modal-overlay" id="sourceModal">
+        <div class="modal-content" style="max-width: 580px;">
+            <div class="modal-header">
+                <h3 id="modalTitle">新增同步源</h3>
+                <button class="modal-close" id="modalCloseBtn">&times;</button>
+            </div>
+            <form id="sourceForm">
+                <input type="hidden" id="sourceId">
+
+                <!-- hyq: 2026-06-23 Add modal-body container for vertical scrolling adaptivity -->
+                <div class="modal-body">
+                    <!-- 1. 网盘装载虚拟根路径选择与输入 -->
+                    <div style="background: rgba(16, 185, 129, 0.04); border: 1px dashed var(--border); padding: 12px; border-radius: 12px; margin-bottom: 14px;">
+                        <label style="font-size:11px; font-weight:700; color:var(--success); margin-bottom: 6px; display:block;">📂 快速选择本地装载路径 (/mnt 下的目录)</label>
+                        <div id="gdSelectContainer" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+                    </div>
+                    <div class="form-group">
+                        <label for="sourceGd">网盘装载虚拟根路径 (SOURCE_GD)</label>
+                        <input type="text" id="sourceGd" class="form-control" required placeholder="例如: /mnt/emby4/emby_movies_now">
+                    </div>
+
+                    <!-- 2. 本地 STRM 路径选择与输入 -->
+                    <div style="background: rgba(96, 165, 250, 0.04); border: 1px dashed var(--border); padding: 12px; border-radius: 12px; margin-bottom: 14px;">
+                        <label style="font-size:11px; font-weight:700; color:var(--primary); margin-bottom: 6px; display:block;">📂 快速选择 STRM 输出路径 (/mnt/strm 下的目录)</label>
+                        <div id="strmSelectContainer" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+                    </div>
+                    <div class="form-group">
+                        <label for="sourceStrm">本地 STRM 生成基准文件夹 (SOURCE_STRM)</label>
+                        <input type="text" id="sourceStrm" class="form-control" required placeholder="例如: /mnt/strm/movies/now">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="sourceName">同步源标识 (唯一性英文，对应INI段名)</label>
+                        <input type="text" id="sourceName" class="form-control" required placeholder="例如: movies_now" pattern="^[a-zA-Z0-9_-]+$">
+                    </div>
+                    <div class="form-group">
+                        <label for="sourceCmd">rclone 网盘驱动指令相对路径 (SOURCE_CMD)</label>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="sourceCmd" class="form-control" required placeholder="例如: emby4:/emby_movies_now" style="flex-grow: 1;">
+                            <button type="button" class="btn btn-secondary" id="testRcloneBtn" style="padding: 0 15px; font-size: 13px; flex-shrink: 0; white-space: nowrap;">🔌 测试连接</button>
+                        </div>
+                        <div id="testRcloneResult" style="margin-top: 6px; font-size: 12px; display: none;"></div>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="modalCancelBtn">取消</button>
+                    <button type="submit" class="btn btn-primary">保存源</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- hyq: 2026-06-23 Modify for JS cache buster -->
+    <!-- <script src="/static/js/app.js"></script> -->
+    <script src="/static/js/app.js?v=20260623_06"></script>
+</body>
+</html>
