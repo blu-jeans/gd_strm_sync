@@ -14,7 +14,7 @@ services:
     ports:
       - "9000:8000"
     environment:
-      # 宿主机上emby用户的UID和GID，解决容器内外权限冲突问题，请根据id emby的实际结果替换
+      # 宿主机上 emby 用户的 UID 和 GID，解决容器内外权限冲突问题，请根据 id emby 的实际结果替换
       - EMBY_UID=998
       - EMBY_GID=997
       # 动态配置容器内可以安全加载的谷歌盘挂载根路径与 STRM 生成根路径。

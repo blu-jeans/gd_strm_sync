@@ -137,6 +137,10 @@ class SourceRequest(BaseModel):
     strm_path: str
     remote_path: str
     sync_metadata: Optional[int] = 1
+    drive_type: Optional[str] = "GoogleDrive"
+
+class ReorderRequest(BaseModel):
+    ordered_ids: List[int]
 
 class SettingsRequest(BaseModel):
     worker_concurrency: int
@@ -581,14 +585,14 @@ def list_sources(username: str = Depends(get_current_user)):
 
 @app.post("/api/sources")
 def create_source(req: SourceRequest, username: str = Depends(get_current_user)):
-    success, msg = db.add_sync_source(req.name, req.gd_path, req.strm_path, req.remote_path, req.sync_metadata)
+    success, msg = db.add_sync_source(req.name, req.gd_path, req.strm_path, req.remote_path, req.sync_metadata, req.drive_type)
     if not success:
         raise HTTPException(status_code=400, detail=msg)
     return {"message": msg}
 
 @app.put("/api/sources/{source_id}")
 def update_source(source_id: int, req: SourceRequest, username: str = Depends(get_current_user)):
-    success, msg = db.update_sync_source(source_id, req.name, req.gd_path, req.strm_path, req.remote_path, req.sync_metadata)
+    success, msg = db.update_sync_source(source_id, req.name, req.gd_path, req.strm_path, req.remote_path, req.sync_metadata, req.drive_type)
     if not success:
         raise HTTPException(status_code=400, detail=msg)
     return {"message": msg}
@@ -597,6 +601,14 @@ def update_source(source_id: int, req: SourceRequest, username: str = Depends(ge
 def delete_source(source_id: int, username: str = Depends(get_current_user)):
     db.delete_sync_source(source_id)
     return {"message": "删除成功"}
+
+@app.post("/api/sources/reorder")
+def reorder_sources(req: ReorderRequest, username: str = Depends(get_current_user)):
+    """批量对同步源进行重新排序，@author: hyq, @version: 2026-06-24"""
+    success = db.update_sources_order(req.ordered_ids)
+    if not success:
+        raise HTTPException(status_code=400, detail="更新排序失败")
+    return {"message": "更新排序成功"}
 
 # ----------------- Rclone 接口 -----------------
 

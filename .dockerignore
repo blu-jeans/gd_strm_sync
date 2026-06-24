@@ -1,0 +1,33 @@
+# =================================================================
+# Docker 构建忽略规则配置文件
+# @author: hyq
+# @version: 2026-06-24
+# =================================================================
+
+# 忽略 Git 历史
+.git
+.gitignore
+.dockerignore
+
+# 忽略 Python 编译字节码与缓存
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# 忽略本地运行产生的数据缓存与日志 (由 Dockerfile 在容器内创建空目录)
+cache/
+logs/
+*.db
+strm_sync.db
+
+# 忽略 IDE 配置文件
+.idea/
+.vscode/
+
+# 忽略隔离输出的报告与模板文档
+.antigravity_outputs/
+
+# 忽略打包部署辅助脚本
+build_and_push.*

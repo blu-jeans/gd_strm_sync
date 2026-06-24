@@ -80,6 +80,7 @@ let currentActiveSection = "dashboard";
 let statusInterval = null;
 let eventSource = null;
 let autoScroll = true;
+let currentSelectedDriveType = "all";
 
 // DOM 元素引用
 const body = document.body;
@@ -163,6 +164,20 @@ async function initUI() {
     // 加载看板数据并启动状态刷新轮询
     loadDashboardData();
     statusInterval = setInterval(loadDashboardData, 4000);
+
+    // 绑定同步源管理的网盘类型左侧子菜单切换监听
+    const sidebarItemsSources = document.querySelectorAll(".sources-sidebar-item");
+    if (sidebarItemsSources.length > 0) {
+        sidebarItemsSources.forEach(item => {
+            item.addEventListener("click", () => {
+                sidebarItemsSources.forEach(el => el.classList.remove("active"));
+                item.classList.add("active");
+                currentSelectedDriveType = item.getAttribute("data-type") || "all";
+                // 重新加载并根据当前网盘分类渲染卡片列表
+                loadSources();
+            });
+        });
+    }
 }
 
 // 主题设置
@@ -689,22 +704,62 @@ async function loadSources() {
             return;
         }
 
-        /*
-        // hyq: 2026-06-23 Modify source-card-actions to support single source syncing
-        // <div class="source-card-actions">
-        //     <button class="btn btn-secondary" style="padding: 6px 12px; font-size:12px;" onclick="openEditModal(${s.id}, '${s.name}', '${s.gd_path}', '${s.strm_path}', '${s.remote_path}')">✏️ 编辑</button>
-        //     <button class="btn btn-danger" style="padding: 6px 12px; font-size:12px;" onclick="deleteSource(${s.id}, '${s.name}')">🗑️ 删除</button>
-        // </div>
-        */
-        sourceGridContainer.innerHTML = sources.map(s => {
+        // 根据左侧栏选择的网盘类型在前端做零开销的内存级过滤
+        let filteredSources = sources;
+        if (currentSelectedDriveType !== "all") {
+            filteredSources = sources.filter(s => s.drive_type === currentSelectedDriveType);
+        }
+
+        if (filteredSources.length === 0) {
+            sourceGridContainer.innerHTML = `
+                <div class="card" style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-muted);">
+                    <h3>当前网盘分类下暂无同步源</h3>
+                    <p style="font-size:13px; margin-top:10px;">您可以点击右上角“新增同步源”为此网盘新建同步映射！</p>
+                </div>
+            `;
+            return;
+        }
+
+        const typeLabels = {
+            GoogleDrive: "🤖 Google Drive",
+            "115": "🔥 115网盘",
+            OneDrive: "☁️ OneDrive",
+            Alipan: "🍊 阿里云盘",
+            Others: "📦 其他网盘"
+        };
+
+        sourceGridContainer.innerHTML = filteredSources.map(s => {
             const metaBadge = s.sync_metadata !== 0 ? 
                 '<span class="status-badge status-success" style="font-size: 10px;">元数据同步: 开启</span>' : 
                 '<span class="status-badge status-stopped" style="font-size: 10px;">元数据同步: 关闭</span>';
+            // hyq: 2026-06-24 Modify typeBadge rendering to use official Google Drive SVG logo
+            // const typeText = typeLabels[s.drive_type] || "📦 其他网盘";
+            // const typeBadge = `<span class="status-badge status-running" style="font-size: 10px; background: rgba(59, 130, 246, 0.08);">${typeText}</span>`;
+            let typeBadge = '';
+            if (s.drive_type === 'GoogleDrive') {
+                typeBadge = `<span class="status-badge status-running" style="font-size: 10px; background: rgba(59, 130, 246, 0.08); display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px;">
+                    <svg viewBox="0 0 64 64" width="12" height="12" style="display: inline-block; vertical-align: middle;">
+                        <path fill="#34A853" d="M18.3 8.8L0 40.5 10.7 59 29 27.3z"/>
+                        <path fill="#FBBC05" d="M61 35.3L42.7 3.6H21.3l18.3 31.7H61z"/>
+                        <path fill="#4285F4" d="M28.7 40.5L18 59h35.3L64 40.5H28.7z"/>
+                    </svg>
+                    Google Drive
+                </span>`;
+            } else {
+                const typeText = typeLabels[s.drive_type] || "📦 其他网盘";
+                typeBadge = `<span class="status-badge status-running" style="font-size: 10px; background: rgba(59, 130, 246, 0.08);">${typeText}</span>`;
+            }
+            
+            // hyq: 2026-06-24 Allow drag sorting in both "all" and "GoogleDrive" views since Google Drive is the only active type currently
+            // const isDraggable = currentSelectedDriveType === "all" ? "true" : "false";
+            const isDraggable = (currentSelectedDriveType === "all" || currentSelectedDriveType === "GoogleDrive") ? "true" : "false";
+
             return `
-                <div class="card source-card">
+                <div class="card source-card" draggable="${isDraggable}" data-id="${s.id}">
                     <div class="source-card-title" style="flex-wrap: wrap; gap: 6px;">
                         <h3>${s.name}</h3>
-                        <div style="display: flex; gap: 4px;">
+                        <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                            ${typeBadge}
                             ${metaBadge}
                             <span class="status-badge status-success" style="font-size: 10px;">激活</span>
                         </div>
@@ -724,14 +779,23 @@ async function loadSources() {
                     </div>
                     
                     <div class="source-card-actions" style="display: flex; gap: 6px; flex-wrap: wrap;">
+                        <button class="btn btn-secondary" style="padding: 6px 10px; font-size:12px;" onclick="pinSource(${s.id})">📌 置顶</button>
                         <button class="btn btn-primary" style="padding: 6px 10px; font-size:12px; flex: 1; min-width: 70px;" onclick="runSingleSync(${s.id}, false)">🚀 同步</button>
                         <button class="btn btn-secondary" style="padding: 6px 10px; font-size:12px; flex: 1; min-width: 70px;" onclick="runSingleSync(${s.id}, true)">⚡ 强刷</button>
-                        <button class="btn btn-secondary" style="padding: 6px 10px; font-size:12px;" onclick="openEditModal(${s.id}, '${s.name}', '${s.gd_path}', '${s.strm_path}', '${s.remote_path}', ${s.sync_metadata})">✏️ 编辑</button>
+                        <button class="btn btn-secondary" style="padding: 6px 10px; font-size:12px;" onclick="openEditModal(${s.id}, '${s.name}', '${s.gd_path}', '${s.strm_path}', '${s.remote_path}', ${s.sync_metadata}, '${s.drive_type || 'GoogleDrive'}')">✏️ 编辑</button>
                         <button class="btn btn-danger" style="padding: 6px 10px; font-size:12px;" onclick="deleteSource(${s.id}, '${s.name}')">🗑️ 删除</button>
                     </div>
                 </div>
             `;
         }).join("");
+        
+        // hyq: 2026-06-24 Allow drag sorting events binding in both "all" and "GoogleDrive" views
+        // if (currentSelectedDriveType === "all") {
+        //     bindDragEvents();
+        // }
+        if (currentSelectedDriveType === "all" || currentSelectedDriveType === "GoogleDrive") {
+            bindDragEvents();
+        }
     } catch (e) {
         console.error("加载同步源列表失败:", e);
     }
@@ -1124,6 +1188,9 @@ async function openAddModal() {
     const sSyncMeta = document.getElementById("sourceSyncMetadata");
     if (sSyncMeta) sSyncMeta.checked = true; // 默认开启
     
+    const sDriveType = document.getElementById("sourceDriveType");
+    if (sDriveType) sDriveType.value = "GoogleDrive";
+    
     if (testRcloneResult) testRcloneResult.style.display = "none";
     if (sourceModal) sourceModal.classList.add("show");
     
@@ -1135,7 +1202,7 @@ async function openAddModal() {
     await strmSelector.init();
 }
 
-window.openEditModal = async function(id, name, gd, strm, remote, sync_metadata) {
+window.openEditModal = async function(id, name, gd, strm, remote, sync_metadata, drive_type) {
     if (modalTitle) modalTitle.innerText = "编辑同步源";
     
     const sid = document.getElementById("sourceId");
@@ -1155,6 +1222,9 @@ window.openEditModal = async function(id, name, gd, strm, remote, sync_metadata)
     
     const sSyncMeta = document.getElementById("sourceSyncMetadata");
     if (sSyncMeta) sSyncMeta.checked = sync_metadata !== 0; // 默认开启，如果没提供也是 true 
+    
+    const sDriveType = document.getElementById("sourceDriveType");
+    if (sDriveType) sDriveType.value = drive_type || "GoogleDrive";
     
     if (testRcloneResult) testRcloneResult.style.display = "none";
     if (sourceModal) sourceModal.classList.add("show");
@@ -1190,7 +1260,10 @@ if (sourceForm) {
         const sSyncMeta = document.getElementById("sourceSyncMetadata");
         const sync_metadata = sSyncMeta ? (sSyncMeta.checked ? 1 : 0) : 1;
 
-        const payload = { name, gd_path, strm_path, remote_path, sync_metadata };
+        const sDriveType = document.getElementById("sourceDriveType");
+        const drive_type = sDriveType ? sDriveType.value : "GoogleDrive";
+
+        const payload = { name, gd_path, strm_path, remote_path, sync_metadata, drive_type };
         
         try {
             let res;
@@ -1351,6 +1424,87 @@ if (passwordForm) {
             alert("修改密码异常");
         }
     });
+}
+
+// ============================================
+// 6.5 拖拽排序与置顶逻辑 (Drag & Drop Sorting & Pin)
+// ============================================
+let draggedItem = null;
+
+function bindDragEvents() {
+    if (!sourceGridContainer) return;
+    const cards = sourceGridContainer.querySelectorAll(".source-card");
+    
+    cards.forEach(card => {
+        // 允许拖拽
+        card.addEventListener("dragstart", (e) => {
+            draggedItem = card;
+            card.classList.add("dragging");
+            e.dataTransfer.effectAllowed = "move";
+        });
+
+        card.addEventListener("dragend", async () => {
+            if (draggedItem) {
+                draggedItem.classList.remove("dragging");
+            }
+            draggedItem = null;
+            
+            // 提取拖拽后的最新卡片 ID 顺序并保存
+            const currentCards = Array.from(sourceGridContainer.querySelectorAll(".source-card"));
+            const orderedIds = currentCards.map(el => parseInt(el.getAttribute("data-id")));
+            await saveSourcesOrder(orderedIds);
+        });
+
+        // 二维网格拖拽排序碰撞检测
+        card.addEventListener("dragover", (e) => {
+            e.preventDefault();
+            if (draggedItem && draggedItem !== card) {
+                const rect = card.getBoundingClientRect();
+                // 鼠标是否已经移过目标卡片中心线
+                const isAfterMidPoint = (e.clientX - rect.left) > (rect.width / 2);
+                if (isAfterMidPoint) {
+                    card.parentNode.insertBefore(draggedItem, card.nextSibling);
+                } else {
+                    card.parentNode.insertBefore(draggedItem, card);
+                }
+            }
+        });
+    });
+}
+
+// 置顶源
+window.pinSource = async function (sourceId) {
+    if (!sourceGridContainer) return;
+    const cards = Array.from(sourceGridContainer.querySelectorAll(".source-card"));
+    let orderedIds = cards.map(el => parseInt(el.getAttribute("data-id")));
+    
+    // 把该 ID 提到首位
+    orderedIds = orderedIds.filter(id => id !== sourceId);
+    orderedIds.unshift(sourceId);
+    
+    // 提交保存顺序
+    await saveSourcesOrder(orderedIds);
+    // 重新加载列表渲染
+    await loadSources();
+};
+
+// 提交新排序到后端
+async function saveSourcesOrder(orderedIds) {
+    try {
+        const res = await apiFetch("/api/sources/reorder", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ordered_ids: orderedIds })
+        });
+        if (res && res.ok) {
+            // 静默同步刷新看板数据以防总数异常
+            loadDashboardData();
+        } else {
+            console.error("更新源排序失败");
+        }
+    } catch (err) {
+        console.error("更新源排序通信异常:", err);
+    }
 }
 
 // ============================================

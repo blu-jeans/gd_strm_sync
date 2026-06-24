@@ -29,6 +29,7 @@ logs/
 *.db
 *.log
 *.local
+.antigravity_outputs/
 
 # OS files
 .DS_Store

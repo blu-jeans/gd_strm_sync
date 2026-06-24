@@ -168,8 +168,35 @@
                     <button id="addSourceBtn" class="btn btn-primary">➕ 新增同步源</button>
                 </div>
                 
-                <div class="source-grid" id="sourceGridContainer">
-                    <!-- 同步源卡片列表动态渲染 -->
+                <div class="sources-layout">
+                    <!-- 左侧子菜单：网盘类型分类 -->
+                    <aside class="sources-sidebar">
+                        <ul class="sources-sidebar-menu" id="sourcesSidebarMenu">
+                            <li class="sources-sidebar-item active" data-type="all">📂 全部源</li>
+                            <li class="sources-sidebar-item" data-type="GoogleDrive">
+                                <svg viewBox="0 0 64 64" width="16" height="16" style="display: inline-block; vertical-align: middle;">
+                                    <path fill="#34A853" d="M18.3 8.8L0 40.5 10.7 59 29 27.3z"/>
+                                    <path fill="#FBBC05" d="M61 35.3L42.7 3.6H21.3l18.3 31.7H61z"/>
+                                    <path fill="#4285F4" d="M28.7 40.5L18 59h35.3L64 40.5H28.7z"/>
+                                </svg>
+                                Google Drive
+                            </li>
+                            <!-- hyq: 2026-06-24 Hide other drive types for Google Drive adaptation only -->
+                            <!--
+                            <li class="sources-sidebar-item" data-type="115">🔥 115 网盘</li>
+                            <li class="sources-sidebar-item" data-type="OneDrive">☁️ OneDrive</li>
+                            <li class="sources-sidebar-item" data-type="Alipan">🍊 阿里云盘</li>
+                            <li class="sources-sidebar-item" data-type="Others">📦 其他网盘</li>
+                            -->
+                        </ul>
+                    </aside>
+                    
+                    <!-- 右侧卡片网格 -->
+                    <div class="sources-main">
+                        <div class="source-grid" id="sourceGridContainer">
+                            <!-- 同步源卡片列表动态渲染 -->
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -303,6 +330,19 @@
                             <button type="button" class="btn btn-secondary" id="testRcloneBtn" style="padding: 0 15px; font-size: 13px; flex-shrink: 0; white-space: nowrap;">🔌 测试连接</button>
                         </div>
                         <div id="testRcloneResult" style="margin-top: 6px; font-size: 12px; display: none;"></div>
+                    </div>
+                    <div class="form-group">
+                        <label for="sourceDriveType">网盘类型 (Drive Type)</label>
+                        <select id="sourceDriveType" class="form-control">
+                            <option value="GoogleDrive">Google Drive</option>
+                            <!-- hyq: 2026-06-24 Hide other options in select dropdown for Google Drive adaptation only -->
+                            <!--
+                            <option value="115">115 网盘</option>
+                            <option value="OneDrive">OneDrive</option>
+                            <option value="Alipan">阿里云盘</option>
+                            <option value="Others">其他网盘</option>
+                            -->
+                        </select>
                     </div>
                     <div class="form-group checkbox-group" style="display: flex; align-items: center; gap: 8px; margin-top: 10px;">
                         <input type="checkbox" id="sourceSyncMetadata" style="width: auto; margin: 0;" checked>

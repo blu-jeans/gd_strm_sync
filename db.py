@@ -88,7 +88,11 @@ def init_db():
     );
     """)
 
-    # 3. 创建同步源配置表
+    # hyq: 2026-06-24 Modify sync_sources table to add sort_order support
+    # # 3. 创建同步源配置表
+    # cursor.execute("""
+    # CREATE TABLE IF NOT EXISTS sync_sources (
+    # 3. 创建同步源配置表 (带 sort_order 与 drive_type 字段支持)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS sync_sources (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -97,13 +101,29 @@ def init_db():
         strm_path TEXT NOT NULL,
         remote_path TEXT NOT NULL,
         sync_metadata INTEGER DEFAULT 1,
+        sort_order INTEGER DEFAULT 0,
+        drive_type TEXT DEFAULT 'GoogleDrive',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """)
 
-    # 兼容性升级：检查并添加 sync_metadata 字段
+    # 兼容性升级：添加 sync_metadata 字段
     try:
         cursor.execute("ALTER TABLE sync_sources ADD COLUMN sync_metadata INTEGER DEFAULT 1")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass
+
+    # 兼容性升级：添加 sort_order 字段以实现拖动排序与置顶功能
+    try:
+        cursor.execute("ALTER TABLE sync_sources ADD COLUMN sort_order INTEGER DEFAULT 0")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass
+
+    # hyq: 2026-06-24 Add drive_type field migration for rclone multi-drive classification support
+    try:
+        cursor.execute("ALTER TABLE sync_sources ADD COLUMN drive_type TEXT DEFAULT 'GoogleDrive'")
         conn.commit()
     except sqlite3.OperationalError:
         pass
@@ -155,10 +175,35 @@ def init_db():
     ]
     for key, val in default_configs:
         try:
-            cursor.execute("INSERT INTO global_configs (config_key, config_value) VALUES (?, ?)", (key, val))
+            cursor.execute("INSERT OR REPLACE INTO global_configs (config_key, config_value) VALUES (?, ?)", (key, val))
         except sqlite3.IntegrityError:
             pass # 已存在则不覆盖
     conn.commit()
+
+    # hyq: 2026-06-24 Populate mock sources only for Windows local testing, preventing server initialization pollution
+    # cursor.execute("SELECT COUNT(*) FROM sync_sources")
+    # if cursor.fetchone()[0] == 0:
+    if os.name == 'nt':
+        cursor.execute("SELECT COUNT(*) FROM sync_sources")
+        if cursor.fetchone()[0] == 0:
+            # hyq: 2026-06-24 Modify mock sources drive_type to GoogleDrive only for Google Drive adaptation
+            # mock_sources = [
+            #     ("emby_ani_now (测试源A)", "/mnt/emby4/emby_ani_now", "/mnt/strm/series_ani/now", "emby4:/emby_ani_now", 0, "GoogleDrive"),
+            #     ("emby_series_now (测试源B)", "/mnt/emby4/emby_series_now", "/mnt/strm/series_mixed/now", "emby4:/emby_series_now", 1, "115"),
+            #     ("emby_movies_edu (测试源C)", "/mnt/emby3/emby_movies_edu", "/mnt/strm/movies/edu", "emby3:/emby_movies_edu", 1, "OneDrive"),
+            # ]
+            mock_sources = [
+                ("emby_ani_now (测试源A)", "/mnt/emby4/emby_ani_now", "/mnt/strm/series_ani/now", "emby4:/emby_ani_now", 0, "GoogleDrive"),
+                ("emby_series_now (测试源B)", "/mnt/emby4/emby_series_now", "/mnt/strm/series_mixed/now", "emby4:/emby_series_now", 1, "GoogleDrive"),
+                ("emby_movies_edu (测试源C)", "/mnt/emby3/emby_movies_edu", "/mnt/strm/movies/edu", "emby3:/emby_movies_edu", 1, "GoogleDrive"),
+            ]
+            for idx, (name, gd, strm, remote, meta, dtype) in enumerate(mock_sources):
+                cursor.execute(
+                    "INSERT INTO sync_sources (name, gd_path, strm_path, remote_path, sync_metadata, sort_order, drive_type) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (name, gd, strm, remote, meta, idx, dtype)
+                )
+            conn.commit()
+
     conn.close()
 
 # ----------------- 用户操作 -----------------
@@ -209,13 +254,38 @@ def update_global_configs(configs_dict):
 
 # ----------------- 数据源操作 -----------------
 
+# hyq: 2026-06-24 Modify get_all_sources sorting order to support sort_order
+# def get_all_sources():
+#     conn = get_db_connection()
+#     cursor = conn.cursor()
+#     cursor.execute("SELECT * FROM sync_sources ORDER BY id DESC")
+#     rows = cursor.fetchall()
+#     conn.close()
+#     return [dict(row) for row in rows]
+
 def get_all_sources():
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM sync_sources ORDER BY id DESC")
+    # 默认按 sort_order 升序，如果 sort_order 相同则按最新的 id 降序排在前面
+    cursor.execute("SELECT * FROM sync_sources ORDER BY sort_order ASC, id DESC")
     rows = cursor.fetchall()
     conn.close()
     return [dict(row) for row in rows]
+
+def update_sources_order(ordered_ids):
+    """根据前端传入的新 ID 顺序列表，批量更新对应的 sort_order，@author: hyq, @version: 2026-06-24"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        for index, source_id in enumerate(ordered_ids):
+            cursor.execute("UPDATE sync_sources SET sort_order = ? WHERE id = ?", (index, source_id))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"[DB] 更新源排序异常: {e}")
+        return False
+    finally:
+        conn.close()
 
 def get_source_by_id(source_id):
     conn = get_db_connection()
@@ -225,13 +295,46 @@ def get_source_by_id(source_id):
     conn.close()
     return dict(row) if row else None
 
-def add_sync_source(name, gd_path, strm_path, remote_path, sync_metadata=1):
+# hyq: 2026-06-24 Modify add_sync_source and update_sync_source to support drive_type field
+# def add_sync_source(name, gd_path, strm_path, remote_path, sync_metadata=1):
+#     conn = get_db_connection()
+#     cursor = conn.cursor()
+#     try:
+#         cursor.execute(
+#             "INSERT INTO sync_sources (name, gd_path, strm_path, remote_path, sync_metadata) VALUES (?, ?, ?, ?, ?)",
+#             (name, gd_path, strm_path, remote_path, sync_metadata)
+#         )
+#         conn.commit()
+#         success, msg = True, "添加源成功"
+#     except sqlite3.IntegrityError:
+#         success, msg = False, f"源名称 '{name}' 已存在"
+#     finally:
+#         conn.close()
+#     return success, msg
+# 
+# def update_sync_source(source_id, name, gd_path, strm_path, remote_path, sync_metadata=1):
+#     conn = get_db_connection()
+#     cursor = conn.cursor()
+#     try:
+#         cursor.execute(
+#             "UPDATE sync_sources SET name = ?, gd_path = ?, strm_path = ?, remote_path = ?, sync_metadata = ? WHERE id = ?",
+#             (name, gd_path, strm_path, remote_path, sync_metadata, source_id)
+#         )
+#         conn.commit()
+#         success, msg = True, "修改源成功"
+#     except sqlite3.IntegrityError:
+#         success, msg = False, f"源名称 '{name}' 已被占用"
+#     finally:
+#         conn.close()
+#     return success, msg
+
+def add_sync_source(name, gd_path, strm_path, remote_path, sync_metadata=1, drive_type='GoogleDrive'):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
         cursor.execute(
-            "INSERT INTO sync_sources (name, gd_path, strm_path, remote_path, sync_metadata) VALUES (?, ?, ?, ?, ?)",
-            (name, gd_path, strm_path, remote_path, sync_metadata)
+            "INSERT INTO sync_sources (name, gd_path, strm_path, remote_path, sync_metadata, drive_type) VALUES (?, ?, ?, ?, ?, ?)",
+            (name, gd_path, strm_path, remote_path, sync_metadata, drive_type)
         )
         conn.commit()
         success, msg = True, "添加源成功"
@@ -241,13 +344,13 @@ def add_sync_source(name, gd_path, strm_path, remote_path, sync_metadata=1):
         conn.close()
     return success, msg
 
-def update_sync_source(source_id, name, gd_path, strm_path, remote_path, sync_metadata=1):
+def update_sync_source(source_id, name, gd_path, strm_path, remote_path, sync_metadata=1, drive_type='GoogleDrive'):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
         cursor.execute(
-            "UPDATE sync_sources SET name = ?, gd_path = ?, strm_path = ?, remote_path = ?, sync_metadata = ? WHERE id = ?",
-            (name, gd_path, strm_path, remote_path, sync_metadata, source_id)
+            "UPDATE sync_sources SET name = ?, gd_path = ?, strm_path = ?, remote_path = ?, sync_metadata = ?, drive_type = ? WHERE id = ?",
+            (name, gd_path, strm_path, remote_path, sync_metadata, drive_type, source_id)
         )
         conn.commit()
         success, msg = True, "修改源成功"

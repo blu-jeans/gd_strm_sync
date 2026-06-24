@@ -11,37 +11,57 @@
    1. 设计系统变量 (CSS Variables)
    ============================================ */
 :root, [data-theme="light"] {
-    --primary: hsl(224, 85%, 58%);
-    --primary-hover: hsl(224, 85%, 48%);
-    --primary-glow: hsla(224, 85%, 58%, 0.15);
+    --primary: hsl(220, 85%, 52%);
+    --primary-hover: hsl(220, 85%, 42%);
+    --primary-glow: hsla(220, 85%, 52%, 0.12);
     
-    --bg-gradient: radial-gradient(circle at 0% 0%, #f8fafc 0%, #f1f5f9 100%);
-    --bg: #f8fafc;
-    --surface: rgba(255, 255, 255, 0.85);
-    --surface-border: rgba(226, 232, 240, 0.8);
-    --border: #e2e8f0;
+    /* 采用高阶质感冷灰色背景，衬托纯白卡片的漂浮感 */
+    --bg-gradient: radial-gradient(circle at 0% 0%, #f8fafc 0%, #e2e8f0 100%);
+    --bg: #ebf0f6;
+    --surface: #ffffff;
+    --surface-border: #cbd5e1;
+    --border: #cbd5e1;
+    /* 大幅调深浅色模式字色，提高对比度与易读性，防止白花花一片 */
     --text: #0f172a;
-    --text-muted: #64748b;
+    --text-muted: #334155; 
     
-    --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03), 0 10px 15px -3px rgba(0, 0, 0, 0.03);
-    --card-blur: blur(16px);
+    --card-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.08), 0 2px 8px -1px rgba(15, 23, 42, 0.04);
+    --card-blur: none;
     
-    --sidebar-bg: #090d16;
+    --sidebar-bg: #0b1329;
     --sidebar-text: #94a3b8;
     --sidebar-active: #ffffff;
     --sidebar-width: 260px;
     
-    --success: #10b981;
-    --danger: #ef4444;
-    --warning: #f59e0b;
+    --success: #059669;
+    --danger: #dc2626;
+    --warning: #d97706;
     
     --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    /* 控制台浅色主题变量 */
+    --console-bg: #f8fafc;
+    --console-header-bg: #e2e8f0;
+    --console-border: #cbd5e1;
+    --console-title: #475569;
+    --console-text: #1e293b;
+    --console-btn-hover: rgba(15, 23, 42, 0.08);
+    --console-btn-color: #475569;
+    --console-btn-hover-color: #0f172a;
+    --log-error: #dc2626;
+    --log-warning: #b45309;
+    --log-success: #15803d;
+    --log-info: #1d4ed8;
+    --log-accent: #6d28d9;
+
+    /* 输入框凹陷质感背景 */
+    --input-bg: rgba(15, 23, 42, 0.04);
 }
 
 [data-theme="dark"] {
-    --primary: hsl(224, 100%, 66%);
-    --primary-hover: hsl(224, 100%, 75%);
-    --primary-glow: hsla(224, 100%, 66%, 0.25);
+    --primary: hsl(220, 100%, 66%);
+    --primary-hover: hsl(220, 100%, 75%);
+    --primary-glow: hsla(220, 100%, 66%, 0.25);
     
     --bg-gradient: radial-gradient(circle at 0% 0%, #0f172a 0%, #020617 100%);
     --bg: #0b0f19;
@@ -60,6 +80,24 @@
     --success: #34d399;
     --danger: #f87171;
     --warning: #fbbf24;
+
+    /* 控制台深色主题变量 */
+    --console-bg: #090d16;
+    --console-header-bg: #020617;
+    --console-border: #1e293b;
+    --console-title: #94a3b8;
+    --console-text: #e2e8f0;
+    --console-btn-hover: rgba(255, 255, 255, 0.05);
+    --console-btn-color: #64748b;
+    --console-btn-hover-color: #f8fafc;
+    --log-error: #f87171;
+    --log-warning: #fbbf24;
+    --log-success: #34d399;
+    --log-info: #60a5fa;
+    --log-accent: #c084fc;
+
+    /* 输入框凹陷质感背景 */
+    --input-bg: rgba(255, 255, 255, 0.05);
 }
 
 /* ============================================
@@ -424,7 +462,7 @@ p.subtitle {
     font-size: 14px;
     border-radius: 10px;
     border: 1px solid var(--border);
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--input-bg);
     color: var(--text);
     outline: none;
     transition: var(--transition);
@@ -448,13 +486,85 @@ select.form-control option {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 24px;
+    margin-bottom: 12px;
+}
+
+.sources-layout {
+    display: flex;
+    gap: 24px;
+    margin-top: 10px;
+    align-items: start;
+}
+
+.sources-sidebar {
+    width: 210px;
+    flex-shrink: 0;
+    background: var(--surface);
+    border: 1px solid var(--surface-border);
+    border-radius: 16px;
+    padding: 16px 10px;
+    box-shadow: var(--card-shadow);
+}
+
+.sources-sidebar-menu {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.sources-sidebar-item {
+    padding: 10px 14px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-muted);
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sources-sidebar-item:hover {
+    background: var(--input-bg);
+    color: var(--text);
+}
+
+.sources-sidebar-item.active {
+    background: var(--primary);
+    color: #ffffff;
+    box-shadow: 0 4px 12px var(--primary-glow);
+}
+
+.sources-main {
+    flex-grow: 1;
 }
 
 .source-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
     gap: 20px;
+}
+
+@media (max-width: 768px) {
+    .sources-layout {
+        flex-direction: column;
+        gap: 16px;
+    }
+    .sources-sidebar {
+        width: 100%;
+        padding: 10px;
+    }
+    .sources-sidebar-menu {
+        flex-direction: row;
+        overflow-x: auto;
+        padding-bottom: 4px;
+    }
+    .sources-sidebar-item {
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
 }
 
 .source-card {
@@ -516,23 +626,23 @@ select.form-control option {
     display: flex;
     flex-direction: column;
     height: 500px;
-    background: #090d16;
-    border: 1px solid #1e293b;
+    background: var(--console-bg);
+    border: 1px solid var(--console-border);
     border-radius: 12px;
     overflow: hidden;
 }
 
 .console-header {
-    background: #020617;
+    background: var(--console-header-bg);
     padding: 12px 18px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 1px solid #1e293b;
+    border-bottom: 1px solid var(--console-border);
 }
 
 .console-title {
-    color: #94a3b8;
+    color: var(--console-title);
     font-size: 13px;
     font-weight: 600;
     display: flex;
@@ -559,7 +669,7 @@ select.form-control option {
 .console-btn {
     background: transparent;
     border: none;
-    color: #64748b;
+    color: var(--console-btn-color);
     cursor: pointer;
     padding: 4px 8px;
     border-radius: 4px;
@@ -569,8 +679,8 @@ select.form-control option {
 }
 
 .console-btn:hover {
-    color: #f8fafc;
-    background: rgba(255,255,255,0.05);
+    color: var(--console-btn-hover-color);
+    background: var(--console-btn-hover);
 }
 
 .console-body {
@@ -580,7 +690,7 @@ select.form-control option {
     font-family: 'JetBrains Mono', monospace;
     font-size: 13px;
     line-height: 1.6;
-    color: #e2e8f0;
+    color: var(--console-text);
 }
 
 .log-line {
@@ -590,11 +700,11 @@ select.form-control option {
 }
 
 /* 日志着色 */
-.log-error { color: #f87171; }
-.log-warning { color: #fbbf24; }
-.log-success { color: #34d399; }
-.log-info { color: #60a5fa; }
-.log-accent { color: #c084fc; }
+.log-error { color: var(--log-error); }
+.log-warning { color: var(--log-warning); }
+.log-success { color: var(--log-success); }
+.log-info { color: var(--log-info); }
+.log-accent { color: var(--log-accent); }
 
 /* ============================================
    9. 弹窗组件 (Modal Dialog)
@@ -845,4 +955,22 @@ select.form-control option {
     .content-container {
         padding: 30px 20px;
     }
+}
+
+/* ============================================
+   13. 拖拽排序与置顶视觉样式 (Drag & Drop Sorting)
+   ============================================ */
+.source-card {
+    cursor: grab;
+    transition: transform 0.2s ease, opacity 0.2s ease, box-shadow 0.2s ease;
+    user-select: none;
+}
+.source-card:active {
+    cursor: grabbing;
+}
+.source-card.dragging {
+    opacity: 0.45;
+    border: 2px dashed var(--primary) !important;
+    transform: scale(0.98);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
 }
