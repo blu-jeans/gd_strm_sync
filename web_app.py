@@ -939,8 +939,18 @@ def stream_logs(token: Optional[str] = None):
 #     except Exception as e:
 #         raise HTTPException(status_code=500, detail=f"读取日志失败: {str(e)}")
 
+# hyq: 2026-06-24 Fix authorization bug for log download where Depends(get_current_user) fails for window.open query param
+# @app.get("/api/tasks/logs/download/{task_id}")
+# def download_log(task_id: int, username: str = Depends(get_current_user)):
 @app.get("/api/tasks/logs/download/{task_id}")
-def download_log(task_id: int, username: str = Depends(get_current_user)):
+def download_log(task_id: int, token: Optional[str] = None):
+    if not token:
+        raise HTTPException(status_code=401, detail="未授权访问")
+    try:
+        jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="凭证无效")
+        
     task = db.get_sync_task_by_id(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
