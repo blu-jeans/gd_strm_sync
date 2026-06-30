@@ -732,6 +732,11 @@ async function loadSources() {
             const metaBadge = s.sync_metadata !== 0 ? 
                 '<span class="status-badge status-success" style="font-size: 10px;">元数据同步: 开启</span>' : 
                 '<span class="status-badge status-stopped" style="font-size: 10px;">元数据同步: 关闭</span>';
+            
+            // hyq: 2026-06-30 Add pinBadge for manually pinned sources
+            const pinBadge = s.is_pinned !== 0 ? 
+                '<span class="status-badge" style="font-size: 10px; background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.25); display: inline-flex; align-items: center; gap: 2px;">📌 已置顶</span>' : '';
+
             // hyq: 2026-06-24 Modify typeBadge rendering to use official Google Drive SVG logo
             // const typeText = typeLabels[s.drive_type] || "📦 其他网盘";
             // const typeBadge = `<span class="status-badge status-running" style="font-size: 10px; background: rgba(59, 130, 246, 0.08);">${typeText}</span>`;
@@ -754,11 +759,16 @@ async function loadSources() {
             // const isDraggable = currentSelectedDriveType === "all" ? "true" : "false";
             const isDraggable = (currentSelectedDriveType === "all" || currentSelectedDriveType === "GoogleDrive") ? "true" : "false";
 
+            // hyq: 2026-06-30 Customize pin button style and text based on is_pinned status
+            const pinBtnText = s.is_pinned !== 0 ? "📍 取消置顶" : "📌 置顶";
+            const pinBtnStyle = s.is_pinned !== 0 ? "background: rgba(245, 158, 11, 0.1); color: #f59e0b; border-color: rgba(245, 158, 11, 0.2);" : "";
+
             return `
                 <div class="card source-card" draggable="${isDraggable}" data-id="${s.id}">
                     <div class="source-card-title" style="flex-wrap: wrap; gap: 6px;">
                         <h3>${s.name}</h3>
                         <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                            ${pinBadge}
                             ${typeBadge}
                             ${metaBadge}
                             <span class="status-badge status-success" style="font-size: 10px;">激活</span>
@@ -779,10 +789,10 @@ async function loadSources() {
                     </div>
                     
                     <div class="source-card-actions" style="display: flex; gap: 6px; flex-wrap: wrap;">
-                        <button class="btn btn-secondary" style="padding: 6px 10px; font-size:12px;" onclick="pinSource(${s.id})">📌 置顶</button>
+                        <button class="btn btn-secondary" style="padding: 6px 10px; font-size:12px; ${pinBtnStyle}" onclick="pinSource(${s.id})">${pinBtnText}</button>
                         <button class="btn btn-primary" style="padding: 6px 10px; font-size:12px; flex: 1; min-width: 70px;" onclick="runSingleSync(${s.id}, false)">🚀 同步</button>
                         <button class="btn btn-secondary" style="padding: 6px 10px; font-size:12px; flex: 1; min-width: 70px;" onclick="runSingleSync(${s.id}, true)">⚡ 强刷</button>
-                        <button class="btn btn-secondary" style="padding: 6px 10px; font-size:12px;" onclick="openEditModal(${s.id}, '${s.name}', '${s.gd_path}', '${s.strm_path}', '${s.remote_path}', ${s.sync_metadata}, '${s.drive_type || 'GoogleDrive'}')">✏️ 编辑</button>
+                        <button class="btn btn-secondary" style="padding: 6px 10px; font-size:12px;" onclick="openEditModal(${s.id}, '${s.name}', '${s.gd_path}', '${s.strm_path}', '${s.remote_path}', ${s.sync_metadata}, '${s.drive_type || 'GoogleDrive'}', ${s.is_pinned || 0})">✏️ 编辑</button>
                         <button class="btn btn-danger" style="padding: 6px 10px; font-size:12px;" onclick="deleteSource(${s.id}, '${s.name}')">🗑️ 删除</button>
                     </div>
                 </div>
@@ -1182,6 +1192,10 @@ async function openAddModal() {
     const sid = document.getElementById("sourceId");
     if (sid) sid.value = "";
     
+    // hyq: 2026-06-30 Reset is_pinned hidden field for new sync source
+    const sIsPinned = document.getElementById("sourceIsPinned");
+    if (sIsPinned) sIsPinned.value = "0";
+
     const sname = document.getElementById("sourceName");
     if (sname) sname.readOnly = false;
     
@@ -1202,12 +1216,18 @@ async function openAddModal() {
     await strmSelector.init();
 }
 
-window.openEditModal = async function(id, name, gd, strm, remote, sync_metadata, drive_type) {
+// hyq: 2026-06-30 Modify openEditModal parameters to accept and set is_pinned
+// window.openEditModal = async function(id, name, gd, strm, remote, sync_metadata, drive_type) {
+window.openEditModal = async function(id, name, gd, strm, remote, sync_metadata, drive_type, is_pinned) {
     if (modalTitle) modalTitle.innerText = "编辑同步源";
     
     const sid = document.getElementById("sourceId");
     if (sid) sid.value = id;
     
+    // hyq: 2026-06-30 Set is_pinned hidden input value
+    const sIsPinned = document.getElementById("sourceIsPinned");
+    if (sIsPinned) sIsPinned.value = is_pinned || 0;
+
     const sname = document.getElementById("sourceName");
     if (sname) {
         sname.value = name;
@@ -1263,7 +1283,11 @@ if (sourceForm) {
         const sDriveType = document.getElementById("sourceDriveType");
         const drive_type = sDriveType ? sDriveType.value : "GoogleDrive";
 
-        const payload = { name, gd_path, strm_path, remote_path, sync_metadata, drive_type };
+        // hyq: 2026-06-30 Get is_pinned value from hidden input to persist state
+        const sIsPinned = document.getElementById("sourceIsPinned");
+        const is_pinned = sIsPinned ? parseInt(sIsPinned.value || "0") : 0;
+
+        const payload = { name, gd_path, strm_path, remote_path, sync_metadata, drive_type, is_pinned };
         
         try {
             let res;
@@ -1472,20 +1496,38 @@ function bindDragEvents() {
     });
 }
 
-// 置顶源
+// hyq: 2026-06-30 Modify pinSource to toggle pinning state via backend API instead of full reorder
+// window.pinSource = async function (sourceId) {
+//     if (!sourceGridContainer) return;
+//     const cards = Array.from(sourceGridContainer.querySelectorAll(".source-card"));
+//     let orderedIds = cards.map(el => parseInt(el.getAttribute("data-id")));
+//     
+//     // 把该 ID 提到首位
+//     orderedIds = orderedIds.filter(id => id !== sourceId);
+//     orderedIds.unshift(sourceId);
+//     
+//     // 提交保存顺序
+//     await saveSourcesOrder(orderedIds);
+//     // 重新加载列表渲染
+//     await loadSources();
+// };
+
 window.pinSource = async function (sourceId) {
-    if (!sourceGridContainer) return;
-    const cards = Array.from(sourceGridContainer.querySelectorAll(".source-card"));
-    let orderedIds = cards.map(el => parseInt(el.getAttribute("data-id")));
-    
-    // 把该 ID 提到首位
-    orderedIds = orderedIds.filter(id => id !== sourceId);
-    orderedIds.unshift(sourceId);
-    
-    // 提交保存顺序
-    await saveSourcesOrder(orderedIds);
-    // 重新加载列表渲染
-    await loadSources();
+    try {
+        const res = await apiFetch(`/api/sources/${sourceId}/pin`, {
+            method: "POST"
+        });
+        if (res && res.ok) {
+            await loadSources();
+            // 静默刷新状态看板以确保同步源状态一致
+            loadDashboardData();
+        } else if (res) {
+            const data = await res.json();
+            alert(data.detail || "更新置顶状态失败");
+        }
+    } catch (err) {
+        alert("置顶操作网络请求失败");
+    }
 };
 
 // 提交新排序到后端

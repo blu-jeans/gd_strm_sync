@@ -138,6 +138,7 @@ class SourceRequest(BaseModel):
     remote_path: str
     sync_metadata: Optional[int] = 1
     drive_type: Optional[str] = "GoogleDrive"
+    is_pinned: Optional[int] = 0
 
 class ReorderRequest(BaseModel):
     ordered_ids: List[int]
@@ -585,14 +586,18 @@ def list_sources(username: str = Depends(get_current_user)):
 
 @app.post("/api/sources")
 def create_source(req: SourceRequest, username: str = Depends(get_current_user)):
-    success, msg = db.add_sync_source(req.name, req.gd_path, req.strm_path, req.remote_path, req.sync_metadata, req.drive_type)
+    # hyq: 2026-06-30 Pass is_pinned parameter
+    # success, msg = db.add_sync_source(req.name, req.gd_path, req.strm_path, req.remote_path, req.sync_metadata, req.drive_type)
+    success, msg = db.add_sync_source(req.name, req.gd_path, req.strm_path, req.remote_path, req.sync_metadata, req.drive_type, req.is_pinned)
     if not success:
         raise HTTPException(status_code=400, detail=msg)
     return {"message": msg}
 
 @app.put("/api/sources/{source_id}")
 def update_source(source_id: int, req: SourceRequest, username: str = Depends(get_current_user)):
-    success, msg = db.update_sync_source(source_id, req.name, req.gd_path, req.strm_path, req.remote_path, req.sync_metadata, req.drive_type)
+    # hyq: 2026-06-30 Pass is_pinned parameter
+    # success, msg = db.update_sync_source(source_id, req.name, req.gd_path, req.strm_path, req.remote_path, req.sync_metadata, req.drive_type)
+    success, msg = db.update_sync_source(source_id, req.name, req.gd_path, req.strm_path, req.remote_path, req.sync_metadata, req.drive_type, req.is_pinned)
     if not success:
         raise HTTPException(status_code=400, detail=msg)
     return {"message": msg}
@@ -601,6 +606,14 @@ def update_source(source_id: int, req: SourceRequest, username: str = Depends(ge
 def delete_source(source_id: int, username: str = Depends(get_current_user)):
     db.delete_sync_source(source_id)
     return {"message": "删除成功"}
+
+@app.post("/api/sources/{source_id}/pin")
+def pin_source(source_id: int, username: str = Depends(get_current_user)):
+    """对单个同步源执行置顶/取消置顶操作，@author: hyq, @version: 2026-06-30"""
+    success, msg = db.toggle_pin_source(source_id)
+    if not success:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"message": msg}
 
 @app.post("/api/sources/reorder")
 def reorder_sources(req: ReorderRequest, username: str = Depends(get_current_user)):

@@ -88,11 +88,11 @@ def init_db():
     );
     """)
 
-    # hyq: 2026-06-24 Modify sync_sources table to add sort_order support
+    # hyq: 2026-06-30 Modify sync_sources table to add sort_order, drive_type and is_pinned support
     # # 3. 创建同步源配置表
     # cursor.execute("""
     # CREATE TABLE IF NOT EXISTS sync_sources (
-    # 3. 创建同步源配置表 (带 sort_order 与 drive_type 字段支持)
+    # 3. 创建同步源配置表 (带 sort_order, drive_type 与 is_pinned 字段支持)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS sync_sources (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -103,6 +103,7 @@ def init_db():
         sync_metadata INTEGER DEFAULT 1,
         sort_order INTEGER DEFAULT 0,
         drive_type TEXT DEFAULT 'GoogleDrive',
+        is_pinned INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """)
@@ -124,6 +125,13 @@ def init_db():
     # hyq: 2026-06-24 Add drive_type field migration for rclone multi-drive classification support
     try:
         cursor.execute("ALTER TABLE sync_sources ADD COLUMN drive_type TEXT DEFAULT 'GoogleDrive'")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass
+
+    # hyq: 2026-06-30 Add is_pinned field migration for pinned visual tag support
+    try:
+        cursor.execute("ALTER TABLE sync_sources ADD COLUMN is_pinned INTEGER DEFAULT 0")
         conn.commit()
     except sqlite3.OperationalError:
         pass
@@ -266,8 +274,9 @@ def update_global_configs(configs_dict):
 def get_all_sources():
     conn = get_db_connection()
     cursor = conn.cursor()
-    # 默认按 sort_order 升序，如果 sort_order 相同则按最新的 id 降序排在前面
-    cursor.execute("SELECT * FROM sync_sources ORDER BY sort_order ASC, id DESC")
+    # hyq: 2026-06-30 Modify sorting order to prioritize is_pinned DESC (pinned items first)
+    # cursor.execute("SELECT * FROM sync_sources ORDER BY sort_order ASC, id DESC")
+    cursor.execute("SELECT * FROM sync_sources ORDER BY is_pinned DESC, sort_order ASC, id DESC")
     rows = cursor.fetchall()
     conn.close()
     return [dict(row) for row in rows]
@@ -284,6 +293,25 @@ def update_sources_order(ordered_ids):
     except Exception as e:
         print(f"[DB] 更新源排序异常: {e}")
         return False
+    finally:
+        conn.close()
+
+def toggle_pin_source(source_id):
+    """切换指定同步源的置顶状态 (is_pinned)，@author: hyq, @version: 2026-06-30"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT is_pinned FROM sync_sources WHERE id = ?", (source_id,))
+        row = cursor.fetchone()
+        if not row:
+            return False, "同步源不存在"
+        new_val = 1 if row['is_pinned'] == 0 else 0
+        cursor.execute("UPDATE sync_sources SET is_pinned = ? WHERE id = ?", (new_val, source_id))
+        conn.commit()
+        return True, "取消置顶成功" if new_val == 0 else "置顶成功"
+    except Exception as e:
+        print(f"[DB] 切换置顶状态异常: {e}")
+        return False, f"更新置顶失败: {e}"
     finally:
         conn.close()
 
@@ -328,13 +356,15 @@ def get_source_by_id(source_id):
 #         conn.close()
 #     return success, msg
 
-def add_sync_source(name, gd_path, strm_path, remote_path, sync_metadata=1, drive_type='GoogleDrive'):
+# hyq: 2026-06-30 Modify add_sync_source to support is_pinned parameter
+# def add_sync_source(name, gd_path, strm_path, remote_path, sync_metadata=1, drive_type='GoogleDrive'):
+def add_sync_source(name, gd_path, strm_path, remote_path, sync_metadata=1, drive_type='GoogleDrive', is_pinned=0):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
         cursor.execute(
-            "INSERT INTO sync_sources (name, gd_path, strm_path, remote_path, sync_metadata, drive_type) VALUES (?, ?, ?, ?, ?, ?)",
-            (name, gd_path, strm_path, remote_path, sync_metadata, drive_type)
+            "INSERT INTO sync_sources (name, gd_path, strm_path, remote_path, sync_metadata, drive_type, is_pinned) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (name, gd_path, strm_path, remote_path, sync_metadata, drive_type, is_pinned)
         )
         conn.commit()
         success, msg = True, "添加源成功"
@@ -344,13 +374,15 @@ def add_sync_source(name, gd_path, strm_path, remote_path, sync_metadata=1, driv
         conn.close()
     return success, msg
 
-def update_sync_source(source_id, name, gd_path, strm_path, remote_path, sync_metadata=1, drive_type='GoogleDrive'):
+# hyq: 2026-06-30 Modify update_sync_source to support is_pinned parameter
+# def update_sync_source(source_id, name, gd_path, strm_path, remote_path, sync_metadata=1, drive_type='GoogleDrive'):
+def update_sync_source(source_id, name, gd_path, strm_path, remote_path, sync_metadata=1, drive_type='GoogleDrive', is_pinned=0):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
         cursor.execute(
-            "UPDATE sync_sources SET name = ?, gd_path = ?, strm_path = ?, remote_path = ?, sync_metadata = ?, drive_type = ? WHERE id = ?",
-            (name, gd_path, strm_path, remote_path, sync_metadata, drive_type, source_id)
+            "UPDATE sync_sources SET name = ?, gd_path = ?, strm_path = ?, remote_path = ?, sync_metadata = ?, drive_type = ?, is_pinned = ? WHERE id = ?",
+            (name, gd_path, strm_path, remote_path, sync_metadata, drive_type, is_pinned, source_id)
         )
         conn.commit()
         success, msg = True, "修改源成功"
